@@ -4,7 +4,15 @@ import { eq, asc } from "drizzle-orm";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { applyHumanTaskEvent, getDb, tasks, taskComments, projects, logger } from "@aif/shared";
+import {
+  applyHumanTaskEvent,
+  getDb,
+  tasks,
+  taskComments,
+  projects,
+  logger,
+  incrementTaskTokenUsage,
+} from "@aif/shared";
 import type { Task } from "@aif/shared";
 import {
   createTaskSchema,
@@ -161,10 +169,14 @@ ${includeFileUpdateStep
       },
     },
   })) {
-    if (message.type !== "result") continue;
-    if (message.subtype !== "success") {
-      throw new Error(`Fast fix failed: ${message.subtype}`);
-    }
+      if (message.type !== "result") continue;
+      incrementTaskTokenUsage(input.task.id, {
+        ...message.usage,
+        total_cost_usd: message.total_cost_usd,
+      });
+      if (message.subtype !== "success") {
+        throw new Error(`Fast fix failed: ${message.subtype}`);
+      }
     resultText = message.result.trim();
   }
 
@@ -298,6 +310,30 @@ tasksRouter.get("/:id", (c) => {
 
   log.debug({ taskId: id }, "Task fetched");
   return c.json(toTaskResponse(task));
+});
+
+// GET /tasks/:id/plan-file-status — check if canonical physical plan file already exists
+tasksRouter.get("/:id/plan-file-status", (c) => {
+  const { id } = c.req.param();
+  const { db, task: existing } = getTaskById(id);
+  if (!existing) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  const project = db.select().from(projects).where(eq(projects.id, existing.projectId)).get();
+  if (!project) {
+    return c.json({ error: "Project not found for task" }, 404);
+  }
+
+  const canonicalPlanPath = resolve(
+    project.rootPath,
+    existing.isFix ? ".ai-factory/FIX_PLAN.md" : ".ai-factory/PLAN.md"
+  );
+
+  return c.json({
+    exists: existsSync(canonicalPlanPath),
+    path: canonicalPlanPath,
+  });
 });
 
 // GET /tasks/:id/comments — list comments

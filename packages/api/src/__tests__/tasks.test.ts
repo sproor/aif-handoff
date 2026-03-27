@@ -231,6 +231,56 @@ describe("tasks API", () => {
     });
   });
 
+  describe("GET /tasks/:id/plan-file-status", () => {
+    it("should report existing canonical plan file", async () => {
+      const db = testDb.current;
+      const rootPath = mkdtempSync(join(tmpdir(), "aif-plan-status-"));
+      const aiFactoryDir = join(rootPath, ".ai-factory");
+      mkdirSync(aiFactoryDir, { recursive: true });
+      writeFileSync(join(aiFactoryDir, "PLAN.md"), "## Existing Plan\n", "utf8");
+
+      db.insert(projects).values({
+        id: "project-plan-status",
+        name: "Project Plan Status",
+        rootPath,
+      }).run();
+      db.insert(tasks).values({
+        id: "task-plan-status",
+        projectId: "project-plan-status",
+        title: "Status task",
+      }).run();
+
+      const res = await app.request("/tasks/task-plan-status/plan-file-status");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.exists).toBe(true);
+      expect(body.path).toContain(".ai-factory/PLAN.md");
+    });
+
+    it("should report missing canonical plan file", async () => {
+      const db = testDb.current;
+      const rootPath = mkdtempSync(join(tmpdir(), "aif-plan-status-missing-"));
+      mkdirSync(join(rootPath, ".ai-factory"), { recursive: true });
+
+      db.insert(projects).values({
+        id: "project-plan-status-missing",
+        name: "Project Plan Status Missing",
+        rootPath,
+      }).run();
+      db.insert(tasks).values({
+        id: "task-plan-status-missing",
+        projectId: "project-plan-status-missing",
+        title: "Status task missing",
+      }).run();
+
+      const res = await app.request("/tasks/task-plan-status-missing/plan-file-status");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.exists).toBe(false);
+      expect(body.path).toContain(".ai-factory/PLAN.md");
+    });
+  });
+
   describe("DELETE /tasks/:id", () => {
     it("should delete a task", async () => {
       const db = testDb.current;

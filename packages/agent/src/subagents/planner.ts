@@ -2,7 +2,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { asc, eq } from "drizzle-orm";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { getDb, projects, tasks, taskComments, logger } from "@aif/shared";
+import { getDb, projects, tasks, taskComments, logger, incrementTaskTokenUsage } from "@aif/shared";
 import { createActivityLogger, createSubagentLogger, logActivity, getClaudePath } from "../hooks.js";
 import { writeQueryAudit } from "../queryAudit.js";
 import {
@@ -253,6 +253,10 @@ Create a concrete, implementation-ready plan using iterative refinement via plan
       },
     })) {
       if (message.type === "result") {
+        incrementTaskTokenUsage(taskId, {
+          ...message.usage,
+          total_cost_usd: message.total_cost_usd,
+        });
         if (message.subtype === "success") {
           resultText = message.result;
           log.info({ taskId, executionName }, "Planning flow completed successfully");

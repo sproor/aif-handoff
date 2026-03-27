@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api";
 import {
   useTask,
   useUpdateTask,
@@ -84,6 +85,19 @@ function encodeBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+function formatTokenCount(value: number | undefined): string {
+  return Intl.NumberFormat("en-US").format(value ?? 0);
+}
+
+function formatUsd(value: number | undefined): string {
+  return Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(value ?? 0);
+}
+
 export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
   const { data: task } = useTask(taskId);
   const updateTask = useUpdateTask();
@@ -101,6 +115,9 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
   const [showClearActivityConfirm, setShowClearActivityConfirm] = useState(false);
   const [showSyncPlanConfirm, setShowSyncPlanConfirm] = useState(false);
+  const [showStartAiConfirm, setShowStartAiConfirm] = useState(false);
+  const [startAiPlanPath, setStartAiPlanPath] = useState<string | null>(null);
+  const [isCheckingStartAiPlanFile, setIsCheckingStartAiPlanFile] = useState(false);
   const [replanComment, setReplanComment] = useState("");
   const [replanFiles, setReplanFiles] = useState<File[]>([]);
   const [attachmentsDragOver, setAttachmentsDragOver] = useState(false);
@@ -300,6 +317,32 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
     });
   };
 
+  const triggerStartAi = () => {
+    if (!task) return;
+    taskEvent.mutate({ id: task.id, event: "start_ai" });
+    onClose();
+  };
+
+  const handleStartAiClick = async () => {
+    if (!task) return;
+    if (isCheckingStartAiPlanFile) return;
+    setIsCheckingStartAiPlanFile(true);
+    try {
+      const status = await api.getTaskPlanFileStatus(task.id);
+      if (status.exists) {
+        setStartAiPlanPath(status.path);
+        setShowStartAiConfirm(true);
+        return;
+      }
+      triggerStartAi();
+    } catch (error) {
+      console.warn("[task-detail] failed to check plan file status before start_ai", error);
+      triggerStartAi();
+    } finally {
+      setIsCheckingStartAiPlanFile(false);
+    }
+  };
+
   return (
     <>
       <Sheet open={!!taskId} onOpenChange={() => onClose()}>
@@ -329,6 +372,20 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
                     <span className="ml-auto max-w-[52%] truncate font-mono text-[10px] text-muted-foreground">
                       {task.id}
                     </span>
+                  </div>
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className="text-[10px]">
+                      in: {formatTokenCount(task.tokenInput)}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      out: {formatTokenCount(task.tokenOutput)}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      total: {formatTokenCount(task.tokenTotal)}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      cost: {formatUsd(task.costUsd)}
+                    </Badge>
                   </div>
                   <SheetTitle className="tracking-tight">{task.title}</SheetTitle>
                 </SheetHeader>
@@ -367,13 +424,17 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
                               return;
                             }
                             if (action.event) {
+                              if (action.event === "start_ai") {
+                                void handleStartAiClick();
+                                return;
+                              }
                               taskEvent.mutate({ id: task.id, event: action.event });
                               onClose();
                             }
                           }}
-                          disabled={isSubmittingPlanChange}
+                          disabled={isSubmittingPlanChange || isCheckingStartAiPlanFile}
                         >
-                          {action.label}
+                          {action.event === "start_ai" && isCheckingStartAiPlanFile ? "Checking..." : action.label}
                         </Button>
                       ))}
                     </div>
@@ -663,6 +724,38 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
               disabled={syncTaskPlan.isPending}
             >
               {syncTaskPlan.isPending ? "Syncing..." : "Sync"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showStartAiConfirm} onOpenChange={setShowStartAiConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Plan file already exists</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            A plan file already exists{startAiPlanPath ? ` (${startAiPlanPath})` : ""}. AI will overwrite it.
+            Continue?
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowStartAiConfirm(false)}
+              disabled={taskEvent.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setShowStartAiConfirm(false);
+                triggerStartAi();
+              }}
+              disabled={taskEvent.isPending}
+            >
+              Continue
             </Button>
           </div>
         </DialogContent>

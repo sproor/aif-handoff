@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Bell, Moon, Sun, Command } from "lucide-react";
+import { Bell, Moon, Sun, Command, ChartColumn } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import {
   getDesktopNotificationPermission,
@@ -9,6 +9,7 @@ import {
 import { ProjectSelector } from "@/components/project/ProjectSelector";
 import type { Project } from "@aif/shared/browser";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { TaskMetricsSummary } from "@/lib/taskMetrics";
 
 interface Props {
   selectedProject: Project | null;
@@ -19,6 +20,7 @@ interface Props {
   onDensityChange: (density: "comfortable" | "compact") => void;
   viewMode: "kanban" | "list";
   onViewModeChange: (mode: "kanban" | "list") => void;
+  taskMetrics: TaskMetricsSummary;
 }
 
 export function Header({
@@ -30,12 +32,25 @@ export function Header({
   onDensityChange,
   viewMode,
   onViewModeChange,
+  taskMetrics,
 }: Props) {
   const { theme, toggleTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [metricsOpen, setMetricsOpen] = useState(false);
   const { settings, setSettings } = useNotificationSettings();
   const permission = getDesktopNotificationPermission();
   const isCompact = density === "compact";
+  const integerFormatter = new Intl.NumberFormat("en-US");
+  const usdFormatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const formatInteger = (value: number) => integerFormatter.format(Math.round(value));
+  const formatUsd = (value: number) => usdFormatter.format(value);
+  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
   const handleDesktopNotificationsToggle = useCallback(async () => {
     const next = !settings.desktop;
@@ -143,6 +158,15 @@ export function Header({
             )}
           </button>
           <button
+            onClick={() => setMetricsOpen(true)}
+            className="inline-flex h-8 items-center gap-1 border border-border bg-card px-2 text-[10px] font-mono text-foreground transition-colors hover:border-primary/70 hover:bg-accent"
+            aria-label="Task metrics"
+            type="button"
+          >
+            <ChartColumn className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">METRICS</span>
+          </button>
+          <button
             onClick={() => setSettingsOpen(true)}
             className="inline-flex h-8 w-8 items-center justify-center border border-border bg-card text-foreground transition-colors hover:border-primary/70 hover:bg-accent"
             aria-label="Notification settings"
@@ -198,6 +222,70 @@ export function Header({
                 Desktop notifications are blocked in browser settings.
               </p>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={metricsOpen} onOpenChange={setMetricsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogClose onClose={() => setMetricsOpen(false)} />
+          <DialogHeader>
+            <DialogTitle>Task Metrics</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Completed tasks</p>
+              <p className="text-lg font-semibold">{formatInteger(taskMetrics.completedTasks)}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatPercent(taskMetrics.completionRate)} of {formatInteger(taskMetrics.totalTasks)}
+              </p>
+            </div>
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Total token usage</p>
+              <p className="text-lg font-semibold">{formatInteger(taskMetrics.totalTokenTotal)}</p>
+              <p className="text-xs text-muted-foreground">
+                in {formatInteger(taskMetrics.totalTokenInput)} / out {formatInteger(taskMetrics.totalTokenOutput)}
+              </p>
+            </div>
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Total cost</p>
+              <p className="text-lg font-semibold">{formatUsd(taskMetrics.totalCostUsd)}</p>
+              <p className="text-xs text-muted-foreground">
+                avg {formatUsd(taskMetrics.averageCostPerTaskUsd)} per task
+              </p>
+            </div>
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Average tokens per task</p>
+              <p className="text-lg font-semibold">{formatInteger(taskMetrics.averageTokensPerTask)}</p>
+              <p className="text-xs text-muted-foreground">across all tracked tasks</p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Active</p>
+              <p className="text-base font-medium">{formatInteger(taskMetrics.activeTasks)}</p>
+            </div>
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Blocked</p>
+              <p className="text-base font-medium">{formatInteger(taskMetrics.blockedTasks)}</p>
+            </div>
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Backlog</p>
+              <p className="text-base font-medium">{formatInteger(taskMetrics.backlogTasks)}</p>
+            </div>
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Verified</p>
+              <p className="text-base font-medium">{formatInteger(taskMetrics.verifiedTasks)}</p>
+            </div>
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Auto mode tasks</p>
+              <p className="text-base font-medium">{formatInteger(taskMetrics.autoModeTasks)}</p>
+            </div>
+            <div className="border border-border bg-card/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Fix tasks / Retries</p>
+              <p className="text-base font-medium">
+                {formatInteger(taskMetrics.fixTasks)} / {formatInteger(taskMetrics.totalRetries)}
+              </p>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -45,3 +45,10 @@ export { logger, rootLogger } from "./logger.js";
 
 // Project initialization
 export { initProjectDirectory } from "./projectInit.js";
+
+// Task usage metrics
+export {
+  parseTaskTokenUsage,
+  incrementTaskTokenUsage,
+  type TaskTokenUsage,
+} from "./taskUsage.js";

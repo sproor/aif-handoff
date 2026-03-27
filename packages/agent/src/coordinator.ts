@@ -12,6 +12,10 @@ const STALE_TIMEOUT_MS = Math.max(env.AGENT_STAGE_STALE_TIMEOUT_MS, 60_000);
 const STALE_MAX_RETRY = Math.max(env.AGENT_STAGE_STALE_MAX_RETRY, 1);
 const STAGE_RUN_TIMEOUT_MS = Math.max(env.AGENT_STAGE_RUN_TIMEOUT_MS, 60_000);
 
+const runtimeCounters = {
+  fastRetryStreamInterruptions: 0,
+};
+
 interface StatusTransition {
   from: TaskStatus[];
   inProgress: TaskStatus;
@@ -69,6 +73,23 @@ function isExternalFailure(err: unknown): boolean {
     lower.includes("blocked by permissions") ||
     lower.includes("write permission")
   );
+}
+
+function isFastRetryableFailure(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("stream interrupted before implement-worker dispatch") ||
+    (lower.includes("error in hook callback") && lower.includes("stream closed"))
+  );
+}
+
+export function getCoordinatorRuntimeCounters(): Readonly<typeof runtimeCounters> {
+  return { ...runtimeCounters };
+}
+
+export function resetCoordinatorRuntimeCountersForTests(): void {
+  runtimeCounters.fastRetryStreamInterruptions = 0;
 }
 
 function getRandomBackoffMinutes(): number {
@@ -311,7 +332,34 @@ export async function pollAndProcess(): Promise<void> {
         "Status transition (success)"
       );
     } catch (err) {
-      if (isExternalFailure(err)) {
+      if (isFastRetryableFailure(err)) {
+        const reason = err instanceof Error ? err.message : String(err);
+        runtimeCounters.fastRetryStreamInterruptions += 1;
+
+        db.update(tasks)
+          .set({
+            status: sourceStatus,
+            blockedReason: null,
+            blockedFromStatus: null,
+            retryAfter: null,
+            lastHeartbeatAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(tasks.id, task.id))
+          .run();
+        void notifyTaskBroadcast(task.id, "task:moved");
+
+        log.warn(
+          {
+            taskId: task.id,
+            stage: stage.label,
+            reason,
+            metric: "coordinator.fast_retry_stream_interruptions",
+            fastRetryStreamInterruptions: runtimeCounters.fastRetryStreamInterruptions,
+          },
+          "Subagent hit transient stream interruption, scheduling fast retry"
+        );
+      } else if (isExternalFailure(err)) {
         const backoffMinutes = getRandomBackoffMinutes();
         const retryAfter = new Date(Date.now() + backoffMinutes * 60_000).toISOString();
         const reason = err instanceof Error ? err.message : String(err);

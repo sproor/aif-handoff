@@ -147,4 +147,9 @@ export const api = {
       method: "POST",
     });
   },
+
+  getTaskPlanFileStatus(id: string): Promise<{ exists: boolean; path: string }> {
+    console.debug("[api] GET /tasks/%s/plan-file-status", id);
+    return request<{ exists: boolean; path: string }>(`${API_BASE}/${id}/plan-file-status`);
+  },
 };

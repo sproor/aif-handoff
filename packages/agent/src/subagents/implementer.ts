@@ -2,7 +2,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { asc, eq } from "drizzle-orm";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { getDb, projects, taskComments, tasks, logger } from "@aif/shared";
+import { getDb, projects, taskComments, tasks, logger, incrementTaskTokenUsage } from "@aif/shared";
 import { createActivityLogger, createSubagentLogger, logActivity, getClaudePath } from "../hooks.js";
 import { writeQueryAudit } from "../queryAudit.js";
 import { computePendingPlanLayers, computePlanLayers, formatLayerSummary } from "../planLayers.js";
@@ -300,6 +300,10 @@ Execution rules:
       },
     })) {
       if (message.type === "result") {
+        incrementTaskTokenUsage(taskId, {
+          ...message.usage,
+          total_cost_usd: message.total_cost_usd,
+        });
         if (message.subtype === "success") {
           resultText = message.result;
           log.info({ taskId }, "implement-worker completed successfully");

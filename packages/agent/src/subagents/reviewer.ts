@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { eq } from "drizzle-orm";
-import { getDb, projects, tasks, logger } from "@aif/shared";
+import { getDb, projects, tasks, logger, incrementTaskTokenUsage } from "@aif/shared";
 import { createActivityLogger, createSubagentLogger, logActivity, getClaudePath } from "../hooks.js";
 import { writeQueryAudit } from "../queryAudit.js";
 import {
@@ -111,6 +111,10 @@ async function runSidecar(
       },
     })) {
       if (message.type === "result") {
+        incrementTaskTokenUsage(taskId, {
+          ...message.usage,
+          total_cost_usd: message.total_cost_usd,
+        });
         if (message.subtype === "success") {
           resultText = message.result;
         } else {

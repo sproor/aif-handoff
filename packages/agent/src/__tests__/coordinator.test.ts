@@ -27,7 +27,11 @@ vi.mock("../subagents/reviewer.js", () => ({
   runReviewer: vi.fn().mockResolvedValue(undefined),
 }));
 
-const { pollAndProcess } = await import("../coordinator.js");
+const {
+  pollAndProcess,
+  getCoordinatorRuntimeCounters,
+  resetCoordinatorRuntimeCountersForTests,
+} = await import("../coordinator.js");
 const { runPlanner } = await import("../subagents/planner.js");
 const { runPlanChecker } = await import("../subagents/planChecker.js");
 const { runImplementer } = await import("../subagents/implementer.js");
@@ -38,6 +42,7 @@ describe("coordinator", () => {
     testDb.current = createTestDb();
     testDb.current.insert(projects).values({ id: "test-project", name: "Test", rootPath: "/tmp/test" }).run();
     vi.clearAllMocks();
+    resetCoordinatorRuntimeCountersForTests();
   });
 
   it("should pick up planning tasks and process through full pipeline", async () => {
@@ -349,7 +354,7 @@ describe("coordinator", () => {
     expect(task!.retryAfter).toBeTruthy();
   });
 
-  it("should move task to blocked_external on implementer stream interruption", async () => {
+  it("should fast-retry on implementer stream interruption before worker dispatch", async () => {
     const db = testDb.current;
     db.insert(tasks)
       .values({ id: "task-impl-stream", projectId: "test-project", title: "Impl stream issue", status: "plan_ready" })
@@ -362,10 +367,11 @@ describe("coordinator", () => {
     await pollAndProcess();
 
     const task = db.select().from(tasks).where(eq(tasks.id, "task-impl-stream")).get();
-    expect(task!.status).toBe("blocked_external");
-    expect(task!.blockedFromStatus).toBe("plan_ready");
-    expect(task!.retryAfter).toBeTruthy();
-    expect(task!.retryCount).toBe(1);
+    expect(task!.status).toBe("plan_ready");
+    expect(task!.blockedFromStatus).toBeNull();
+    expect(task!.retryAfter).toBeNull();
+    expect(task!.blockedReason).toBeNull();
+    expect(getCoordinatorRuntimeCounters().fastRetryStreamInterruptions).toBe(1);
   });
 
   it("should revert status on plan checker failure", async () => {

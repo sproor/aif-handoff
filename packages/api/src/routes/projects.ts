@@ -41,7 +41,12 @@ projectsRouter.post("/", zValidator("json", createProjectSchema), async (c) => {
     })
     .run();
 
-  initProjectDirectory(body.rootPath);
+  try {
+    initProjectDirectory(body.rootPath);
+  } catch (err) {
+    // Project creation should not fail if optional scaffold/bootstrap step fails.
+    log.warn({ projectId: id, rootPath: body.rootPath, err }, "Project directory initialization failed");
+  }
 
   const created = db.select().from(projects).where(eq(projects.id, id)).get();
   log.debug({ projectId: id, name: body.name }, "Project created");

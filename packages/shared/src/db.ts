@@ -97,6 +97,10 @@ function ensureTables(sqlite: Database.Database): void {
       blocked_from_status TEXT,
       retry_after TEXT,
       retry_count INTEGER NOT NULL DEFAULT 0,
+      token_input INTEGER NOT NULL DEFAULT 0,
+      token_output INTEGER NOT NULL DEFAULT 0,
+      token_total INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0,
       rework_requested INTEGER NOT NULL DEFAULT 0,
       last_heartbeat_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -118,6 +122,10 @@ function ensureTables(sqlite: Database.Database): void {
   ensureColumn(sqlite, "tasks", "blocked_from_status", "blocked_from_status TEXT");
   ensureColumn(sqlite, "tasks", "retry_after", "retry_after TEXT");
   ensureColumn(sqlite, "tasks", "retry_count", "retry_count INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(sqlite, "tasks", "token_input", "token_input INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(sqlite, "tasks", "token_output", "token_output INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(sqlite, "tasks", "token_total", "token_total INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(sqlite, "tasks", "cost_usd", "cost_usd REAL NOT NULL DEFAULT 0");
   ensureColumn(sqlite, "tasks", "rework_requested", "rework_requested INTEGER NOT NULL DEFAULT 0");
   ensureColumn(sqlite, "tasks", "last_heartbeat_at", "last_heartbeat_at TEXT");
   ensureColumn(sqlite, "tasks", "auto_mode", "auto_mode INTEGER NOT NULL DEFAULT 1");

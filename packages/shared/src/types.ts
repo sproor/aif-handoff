@@ -58,6 +58,10 @@ export interface Task {
   blockedFromStatus: TaskStatus | null;
   retryAfter: string | null;
   retryCount: number;
+  tokenInput?: number;
+  tokenOutput?: number;
+  tokenTotal?: number;
+  costUsd?: number;
   reworkRequested: boolean;
   lastHeartbeatAt: string | null;
   createdAt: string;
@@ -105,6 +109,10 @@ export interface UpdateTaskInput {
   blockedFromStatus?: TaskStatus | null;
   retryAfter?: string | null;
   retryCount?: number;
+  tokenInput?: number;
+  tokenOutput?: number;
+  tokenTotal?: number;
+  costUsd?: number;
   reworkRequested?: boolean;
   lastHeartbeatAt?: string | null;
 }

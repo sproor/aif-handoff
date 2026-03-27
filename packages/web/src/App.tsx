@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Header } from "./components/layout/Header";
 import { Board } from "./components/kanban/Board";
@@ -9,6 +9,7 @@ import { useProjects } from "./hooks/useProjects";
 import { useTasks } from "./hooks/useTasks";
 import { useTheme } from "./hooks/useTheme";
 import { Button } from "./components/ui/button";
+import { calculateTaskMetrics } from "./lib/taskMetrics";
 import type { Project } from "@aif/shared/browser";
 
 const STORAGE_KEY = "aif-selected-project";
@@ -42,6 +43,10 @@ function AppContent() {
     return saved === "list" ? "list" : "kanban";
   });
   const { data: projectTasks } = useTasks(project?.id ?? null);
+  const taskMetrics = useMemo(
+    () => calculateTaskMetrics(projectTasks ?? []),
+    [projectTasks]
+  );
 
   useEffect(() => {
     localStorage.setItem(DENSITY_KEY, density);
@@ -101,6 +106,7 @@ function AppContent() {
         onDensityChange={setDensity}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        taskMetrics={taskMetrics}
       />
 
       <main className={`mx-auto w-full max-w-[1680px] ${density === "compact" ? "p-4 md:p-5" : "p-6 md:p-8"}`}>

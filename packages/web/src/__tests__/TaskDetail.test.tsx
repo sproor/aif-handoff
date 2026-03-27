@@ -93,6 +93,13 @@ const mutateCreateComment = vi.fn();
 const mutateTaskEventAsync = vi.fn();
 const mutateCreateCommentAsync = vi.fn();
 const mutateSyncTaskPlan = vi.fn();
+const mockGetTaskPlanFileStatus = vi.fn();
+
+vi.mock("@/lib/api", () => ({
+  api: {
+    getTaskPlanFileStatus: (...args: unknown[]) => mockGetTaskPlanFileStatus(...args),
+  },
+}));
 
 vi.mock("@/hooks/useTasks", () => ({
   useTask: (id: string | null) => ({
@@ -141,8 +148,10 @@ describe("TaskDetail", () => {
     mutateTaskEventAsync.mockReset();
     mutateCreateCommentAsync.mockReset();
     mutateSyncTaskPlan.mockClear();
+    mockGetTaskPlanFileStatus.mockReset();
     mutateTaskEventAsync.mockResolvedValue(undefined);
     mutateCreateCommentAsync.mockResolvedValue(undefined);
+    mockGetTaskPlanFileStatus.mockResolvedValue({ exists: false, path: "/tmp/.ai-factory/PLAN.md" });
   });
 
   it("should render nothing when taskId is null", () => {
@@ -281,7 +290,7 @@ describe("TaskDetail", () => {
     });
   });
 
-  it("should trigger start_ai event from backlog action", () => {
+  it("should trigger start_ai event from backlog action when plan file does not exist", async () => {
     const onClose = vi.fn();
     render(
       <TaskDetail taskId="detail-backlog" onClose={onClose} />,
@@ -289,11 +298,62 @@ describe("TaskDetail", () => {
     );
 
     fireEvent.click(screen.getByText("Start AI"));
+    await waitFor(() => {
+      expect(mockGetTaskPlanFileStatus).toHaveBeenCalledWith("detail-backlog");
+      expect(mutateTaskEvent).toHaveBeenCalledWith({
+        id: "detail-backlog",
+        event: "start_ai",
+      });
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it("should show confirmation before start_ai when plan file already exists", async () => {
+    const onClose = vi.fn();
+    mockGetTaskPlanFileStatus.mockResolvedValueOnce({
+      exists: true,
+      path: "/tmp/project/.ai-factory/PLAN.md",
+    });
+
+    render(
+      <TaskDetail taskId="detail-backlog" onClose={onClose} />,
+      { wrapper: Wrapper }
+    );
+
+    fireEvent.click(screen.getByText("Start AI"));
+    await waitFor(() => {
+      expect(screen.getByText("Plan file already exists")).toBeDefined();
+    });
+    expect(mutateTaskEvent).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(mutateTaskEvent).toHaveBeenCalledWith({
       id: "detail-backlog",
       event: "start_ai",
     });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("should cancel start_ai when user cancels overwrite confirmation", async () => {
+    const onClose = vi.fn();
+    mockGetTaskPlanFileStatus.mockResolvedValueOnce({
+      exists: true,
+      path: "/tmp/project/.ai-factory/PLAN.md",
+    });
+
+    render(
+      <TaskDetail taskId="detail-backlog" onClose={onClose} />,
+      { wrapper: Wrapper }
+    );
+
+    fireEvent.click(screen.getByText("Start AI"));
+    await waitFor(() => {
+      expect(screen.getByText("Plan file already exists")).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(mutateTaskEvent).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("should trigger retry_from_blocked event from blocked action", () => {

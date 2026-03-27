@@ -152,5 +152,9 @@ describe("tasks schema", () => {
     expect(result!.blockedFromStatus).toBeNull();
     expect(result!.retryAfter).toBeNull();
     expect(result!.retryCount).toBe(0);
+    expect(result!.tokenInput).toBe(0);
+    expect(result!.tokenOutput).toBe(0);
+    expect(result!.tokenTotal).toBe(0);
+    expect(result!.costUsd).toBe(0);
   });
 });
