@@ -78,6 +78,14 @@ const mockTaskWithAttachment: Task = {
   ],
 };
 
+const mockTaskNoPlanNoLog: Task = {
+  ...mockTask,
+  id: "detail-no-plan-no-log",
+  title: "No Plan No Log",
+  plan: null,
+  agentActivityLog: null,
+};
+
 const mutateUpdateTask = vi.fn();
 const mutateDeleteTask = vi.fn();
 const mutateTaskEvent = vi.fn();
@@ -103,6 +111,8 @@ vi.mock("@/hooks/useTasks", () => ({
                     ? mockReviewTask
                     : id === "detail-with-attachment"
                       ? mockTaskWithAttachment
+                      : id === "detail-no-plan-no-log"
+                        ? mockTaskNoPlanNoLog
                 : null,
   }),
   useUpdateTask: () => ({ mutate: mutateUpdateTask }),
@@ -133,7 +143,6 @@ describe("TaskDetail", () => {
     mutateSyncTaskPlan.mockClear();
     mutateTaskEventAsync.mockResolvedValue(undefined);
     mutateCreateCommentAsync.mockResolvedValue(undefined);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   it("should render nothing when taskId is null", () => {
@@ -189,8 +198,8 @@ describe("TaskDetail", () => {
 
     fireEvent.click(screen.getByText("Activity"));
     fireEvent.click(screen.getByRole("button", { name: "Clear log" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
-    expect(window.confirm).toHaveBeenCalled();
     expect(mutateUpdateTask).toHaveBeenCalledWith(
       {
         id: "detail-1",
@@ -207,12 +216,23 @@ describe("TaskDetail", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Sync" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Sync" })[1]);
 
-    expect(window.confirm).toHaveBeenCalled();
     expect(mutateSyncTaskPlan).toHaveBeenCalledWith(
       "detail-1",
       expect.any(Object)
     );
+  });
+
+  it("should hide clear log and sync buttons when log and plan are missing", () => {
+    render(
+      <TaskDetail taskId="detail-no-plan-no-log" onClose={vi.fn()} />,
+      { wrapper: Wrapper }
+    );
+
+    expect(screen.queryByRole("button", { name: "Sync" })).toBeNull();
+    fireEvent.click(screen.getByText("Activity"));
+    expect(screen.queryByRole("button", { name: "Clear log" })).toBeNull();
   });
 
   it("should show delete button", () => {

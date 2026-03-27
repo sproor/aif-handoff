@@ -99,6 +99,8 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
   const [planChangeSuccess, setPlanChangeSuccess] = useState<string | null>(null);
   const [maintenanceSuccess, setMaintenanceSuccess] = useState<string | null>(null);
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
+  const [showClearActivityConfirm, setShowClearActivityConfirm] = useState(false);
+  const [showSyncPlanConfirm, setShowSyncPlanConfirm] = useState(false);
   const [replanComment, setReplanComment] = useState("");
   const [replanFiles, setReplanFiles] = useState<File[]>([]);
   const [attachmentsDragOver, setAttachmentsDragOver] = useState(false);
@@ -246,8 +248,6 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
 
   const handleClearActivityLog = () => {
     if (!task) return;
-    const shouldClear = confirm("Clear agent activity log? This action cannot be undone.");
-    if (!shouldClear) return;
 
     setMaintenanceSuccess(null);
     setMaintenanceError(null);
@@ -258,6 +258,7 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
       },
       {
         onSuccess: () => {
+          setShowClearActivityConfirm(false);
           setMaintenanceSuccess("Agent activity log cleared.");
         },
         onError: (error) => {
@@ -269,13 +270,12 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
 
   const handleSyncPlanFromFile = () => {
     if (!task) return;
-    const shouldSync = confirm("Sync plan from physical file into DB? Current DB plan will be overwritten.");
-    if (!shouldSync) return;
 
     setMaintenanceSuccess(null);
     setMaintenanceError(null);
     syncTaskPlan.mutate(task.id, {
       onSuccess: () => {
+        setShowSyncPlanConfirm(false);
         setMaintenanceSuccess("Plan synced from physical file.");
       },
       onError: (error) => {
@@ -480,18 +480,20 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
 
                   <Section
                     title="Plan"
-                    actions={(
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-[10px]"
-                        onClick={handleSyncPlanFromFile}
-                        disabled={syncTaskPlan.isPending}
-                      >
-                        {syncTaskPlan.isPending ? "Syncing..." : "Sync"}
-                      </Button>
-                    )}
+                    actions={task.plan?.trim()
+                      ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() => setShowSyncPlanConfirm(true)}
+                            disabled={syncTaskPlan.isPending}
+                          >
+                            {syncTaskPlan.isPending ? "Syncing..." : "Sync"}
+                          </Button>
+                        )
+                      : undefined}
                   >
                     <TaskPlan plan={task.plan} />
                   </Section>
@@ -529,18 +531,20 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
                   {activeTab === "activity" && (
                     <Section
                       title="Agent Activity"
-                      actions={(
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-[10px]"
-                          onClick={handleClearActivityLog}
-                          disabled={updateTask.isPending}
-                        >
-                          {updateTask.isPending ? "Clearing..." : "Clear log"}
-                        </Button>
-                      )}
+                      actions={task.agentActivityLog?.trim()
+                        ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() => setShowClearActivityConfirm(true)}
+                              disabled={updateTask.isPending}
+                            >
+                              {updateTask.isPending ? "Clearing..." : "Clear log"}
+                            </Button>
+                          )
+                        : undefined}
                     >
                       <AgentTimeline activityLog={task.agentActivityLog} />
                     </Section>
@@ -586,6 +590,63 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
               onClick={handleDelete}
             >
               Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showClearActivityConfirm} onOpenChange={setShowClearActivityConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear agent activity log?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This action cannot be undone. All agent activity entries for this task will be removed.
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowClearActivityConfirm(false)}
+              disabled={updateTask.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleClearActivityLog}
+              disabled={updateTask.isPending}
+            >
+              {updateTask.isPending ? "Clearing..." : "Clear"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSyncPlanConfirm} onOpenChange={setShowSyncPlanConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sync plan from file?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will overwrite the current plan in DB with the content from the physical plan file.
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSyncPlanConfirm(false)}
+              disabled={syncTaskPlan.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSyncPlanFromFile}
+              disabled={syncTaskPlan.isPending}
+            >
+              {syncTaskPlan.isPending ? "Syncing..." : "Sync"}
             </Button>
           </div>
         </DialogContent>
