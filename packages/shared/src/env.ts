@@ -5,6 +5,8 @@ const log = logger("env");
 const BOOLEAN_TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
 const BOOLEAN_FALSE_VALUES = new Set(["0", "false", "no", "off"]);
 
+const ACTIVITY_LOG_MODES = ["sync", "batch"] as const;
+
 const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   PORT: z.coerce.number().default(3001),
@@ -28,6 +30,23 @@ const envSchema = z.object({
     }, z.boolean())
     .default(true),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("debug"),
+  ACTIVITY_LOG_MODE: z
+    .preprocess((value) => {
+      if (typeof value !== "string") return "sync";
+      const normalized = value.trim().toLowerCase();
+      if (!(ACTIVITY_LOG_MODES as readonly string[]).includes(normalized)) {
+        log.warn(
+          { value, fallback: "sync" },
+          "Invalid ACTIVITY_LOG_MODE value, falling back to sync",
+        );
+        return "sync";
+      }
+      return normalized;
+    }, z.enum(ACTIVITY_LOG_MODES))
+    .default("sync"),
+  ACTIVITY_LOG_BATCH_SIZE: z.coerce.number().min(1).default(20),
+  ACTIVITY_LOG_BATCH_MAX_AGE_MS: z.coerce.number().min(100).default(5000),
+  ACTIVITY_LOG_QUEUE_LIMIT: z.coerce.number().min(1).default(500),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -46,6 +65,16 @@ export function getEnv(): Env {
 
   _env = result.data;
   log.debug({ port: _env.PORT, dbUrl: _env.DATABASE_URL }, "Environment loaded");
+  log.info({ mode: _env.ACTIVITY_LOG_MODE }, "Activity logging mode selected");
+  log.debug(
+    {
+      mode: _env.ACTIVITY_LOG_MODE,
+      batchSize: _env.ACTIVITY_LOG_BATCH_SIZE,
+      maxAgeMs: _env.ACTIVITY_LOG_BATCH_MAX_AGE_MS,
+      queueLimit: _env.ACTIVITY_LOG_QUEUE_LIMIT,
+    },
+    "Resolved activity-log config",
+  );
   return _env;
 }
 

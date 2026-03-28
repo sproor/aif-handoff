@@ -1,7 +1,7 @@
 import { existsSync } from "fs";
 import { resolve } from "path";
 import { eq } from "drizzle-orm";
-import { getDb, tasks, logger, findMonorepoRootFromUrl } from "@aif/shared";
+import { getDb, tasks, logger, findMonorepoRootFromUrl, getEnv } from "@aif/shared";
 import type { HookCallback } from "@anthropic-ai/claude-agent-sdk";
 
 const log = logger("agent-hooks");
@@ -39,21 +39,42 @@ export function getClaudePath(): string | undefined {
 /** Log categories for activity entries. */
 export type ActivityCategory = "Tool" | "Agent" | "Subagent";
 
-/**
- * Append a structured activity entry to the task's agentActivityLog.
- * Format: `[timestamp] Category: detail`
- */
-export function logActivity(taskId: string, category: ActivityCategory, detail: string): void {
-  const timestamp = new Date().toISOString();
-  const entry = `[${timestamp}] ${category}: ${detail}`;
+// ---------------------------------------------------------------------------
+// Batched activity-log queue
+// ---------------------------------------------------------------------------
 
-  log.debug({ taskId, category, detail }, "Activity logged");
+interface QueueEntry {
+  timestamp: string;
+  category: ActivityCategory;
+  detail: string;
+}
+
+/** Per-task in-memory queue for batch mode. */
+const taskQueues = new Map<string, QueueEntry[]>();
+
+/** Per-task flush timer handles. */
+const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * Flush buffered activity entries for a single task to the database.
+ * Safe to call even when the queue is empty (no-op).
+ */
+export function flushActivityQueue(taskId: string): void {
+  const queue = taskQueues.get(taskId);
+  if (!queue || queue.length === 0) {
+    log.debug({ taskId, entries: 0 }, "Flush skipped — queue empty");
+    return;
+  }
+
+  const entries = queue.splice(0);
+  log.debug({ taskId, entries: entries.length, trigger: "flush" }, "Flushing activity queue");
 
   try {
     const db = getDb();
     const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
     const currentLog = task?.agentActivityLog ?? "";
-    const updatedLog = currentLog ? `${currentLog}\n${entry}` : entry;
+    const newLines = entries.map((e) => `[${e.timestamp}] ${e.category}: ${e.detail}`).join("\n");
+    const updatedLog = currentLog ? `${currentLog}\n${newLines}` : newLines;
 
     db.update(tasks)
       .set({
@@ -63,9 +84,124 @@ export function logActivity(taskId: string, category: ActivityCategory, detail: 
       })
       .where(eq(tasks.id, taskId))
       .run();
+
+    log.info({ taskId, entries: entries.length, mode: "batch" }, "Activity queue flushed");
   } catch (err) {
-    log.error({ err, taskId }, "Failed to update agent activity log");
+    log.error({ err, taskId, lostEntries: entries.length }, "Failed to flush activity queue");
   }
+}
+
+/**
+ * Flush all task queues. Used during shutdown or stage boundaries.
+ */
+export function flushAllActivityQueues(): void {
+  const taskIds = [...taskQueues.keys()];
+  log.debug({ tasks: taskIds.length }, "Flushing all activity queues");
+  for (const taskId of taskIds) {
+    flushActivityQueue(taskId);
+  }
+}
+
+/**
+ * Clean up flush timers and queues for a given task.
+ * Call after a task finishes its stage or the process exits.
+ */
+export function disposeActivityQueue(taskId: string): void {
+  const timer = flushTimers.get(taskId);
+  if (timer) {
+    clearTimeout(timer);
+    flushTimers.delete(taskId);
+  }
+  flushActivityQueue(taskId);
+  taskQueues.delete(taskId);
+  log.debug({ taskId }, "Activity queue disposed");
+}
+
+/** Reset max-age timer for a task (batch mode). */
+function resetFlushTimer(taskId: string, maxAgeMs: number): void {
+  const existing = flushTimers.get(taskId);
+  if (existing) clearTimeout(existing);
+
+  const timer = setTimeout(() => {
+    log.debug({ taskId, trigger: "max_age" }, "Max-age flush timer fired");
+    flushActivityQueue(taskId);
+    flushTimers.delete(taskId);
+  }, maxAgeMs);
+
+  // Prevent timer from keeping the process alive
+  if (typeof timer === "object" && "unref" in timer) {
+    timer.unref();
+  }
+
+  flushTimers.set(taskId, timer);
+}
+
+/**
+ * Append a structured activity entry to the task's agentActivityLog.
+ * Format: `[timestamp] Category: detail`
+ *
+ * In `sync` mode (default): writes immediately to the database.
+ * In `batch` mode: buffers in memory and flushes when batch size, max age,
+ * or manual flush triggers are met.
+ */
+export function logActivity(taskId: string, category: ActivityCategory, detail: string): void {
+  const env = getEnv();
+  const timestamp = new Date().toISOString();
+
+  log.debug({ taskId, category, detail, mode: env.ACTIVITY_LOG_MODE }, "Activity logged");
+
+  if (env.ACTIVITY_LOG_MODE === "sync") {
+    const entry = `[${timestamp}] ${category}: ${detail}`;
+    try {
+      const db = getDb();
+      const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
+      const currentLog = task?.agentActivityLog ?? "";
+      const updatedLog = currentLog ? `${currentLog}\n${entry}` : entry;
+
+      db.update(tasks)
+        .set({
+          agentActivityLog: updatedLog,
+          lastHeartbeatAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tasks.id, taskId))
+        .run();
+    } catch (err) {
+      log.error({ err, taskId }, "Failed to update agent activity log");
+    }
+    return;
+  }
+
+  // --- Batch mode ---
+  let queue = taskQueues.get(taskId);
+  if (!queue) {
+    queue = [];
+    taskQueues.set(taskId, queue);
+  }
+
+  // Enforce queue limit — drop oldest when full
+  if (queue.length >= env.ACTIVITY_LOG_QUEUE_LIMIT) {
+    const dropped = queue.shift();
+    log.warn(
+      { taskId, queueLimit: env.ACTIVITY_LOG_QUEUE_LIMIT, droppedTimestamp: dropped?.timestamp },
+      "Activity queue limit reached — dropping oldest entry",
+    );
+  }
+
+  queue.push({ timestamp, category, detail });
+  log.debug({ taskId, queueSize: queue.length }, "Activity entry enqueued");
+
+  // Flush if batch size reached
+  if (queue.length >= env.ACTIVITY_LOG_BATCH_SIZE) {
+    log.debug({ taskId, trigger: "batch_size" }, "Batch size flush triggered");
+    flushActivityQueue(taskId);
+    // Reset the max-age timer since we just flushed
+    resetFlushTimer(taskId, env.ACTIVITY_LOG_BATCH_MAX_AGE_MS);
+    return;
+  }
+
+  // (Re)start max-age timer
+  resetFlushTimer(taskId, env.ACTIVITY_LOG_BATCH_MAX_AGE_MS);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -14,7 +14,7 @@ import { runPlanner } from "./subagents/planner.js";
 import { runPlanChecker } from "./subagents/planChecker.js";
 import { runImplementer } from "./subagents/implementer.js";
 import { runReviewer } from "./subagents/reviewer.js";
-import { logActivity } from "./hooks.js";
+import { logActivity, flushActivityQueue } from "./hooks.js";
 import { notifyTaskBroadcast } from "./notifier.js";
 import { evaluateReviewCommentsForAutoMode } from "./reviewGate.js";
 import { isExternalFailure, isFastRetryableFailure, truncateReason } from "./errorClassifier.js";
@@ -178,6 +178,9 @@ export async function pollAndProcess(): Promise<void> {
     try {
       await runStageWithTimeout(stage.runner, task.id, project.rootPath, stage.label);
 
+      // Flush buffered activity logs at stage boundary (batch mode)
+      flushActivityQueue(task.id);
+
       const refreshedTask = db.select().from(tasks).where(eq(tasks.id, task.id)).get();
 
       if (stage.label === "reviewer" && refreshedTask?.autoMode) {
@@ -311,6 +314,9 @@ export async function pollAndProcess(): Promise<void> {
           "Subagent failed, reverting status",
         );
       }
+
+      // Flush buffered activity logs on error path too
+      flushActivityQueue(task.id);
 
       // Stop current poll cycle after a failed stage to avoid immediately
       // re-picking the same task in a downstream stage in this same cycle.

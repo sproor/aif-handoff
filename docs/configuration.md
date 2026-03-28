@@ -23,6 +23,10 @@ cp .env.example .env
 | `DATABASE_URL`                     | string  | `./data/aif.sqlite` | Path to the SQLite database file                                                                                                    |
 | `AGENT_QUERY_AUDIT_ENABLED`        | boolean | `true`              | Enable/disable writing agent query audit logs to `logs/*.log`                                                                       |
 | `LOG_LEVEL`                        | string  | `debug`             | Pino log level: `fatal`, `error`, `warn`, `info`, `debug`, `trace`                                                                  |
+| `ACTIVITY_LOG_MODE`                | string  | `sync`              | Activity logging strategy: `sync` (per-event DB write) or `batch` (buffered flush)                                                  |
+| `ACTIVITY_LOG_BATCH_SIZE`          | number  | `20`                | Maximum entries per flush when in batch mode                                                                                        |
+| `ACTIVITY_LOG_BATCH_MAX_AGE_MS`    | number  | `5000`              | Maximum age (ms) of buffered entries before auto-flush in batch mode                                                                |
+| `ACTIVITY_LOG_QUEUE_LIMIT`         | number  | `500`               | Hard queue limit to prevent unbounded memory growth in batch mode                                                                   |
 
 Environment validation is handled by Zod in `packages/shared/src/env.ts`. The application will fail to start with a descriptive error if required variables are invalid.
 
@@ -79,6 +83,15 @@ log.info({ key: "value" }, "Something happened");
 ```
 
 Agent query audit logs are controlled by `AGENT_QUERY_AUDIT_ENABLED`. When enabled, query payloads are written to `logs/{agentName}.log` with rotation.
+
+### Activity Logging
+
+Activity logging tracks tool events during agent runs. Two modes are available:
+
+- **`sync`** (default): Each tool event is written to the database immediately via `select+update`. Safe and simple but generates one DB write per event.
+- **`batch`**: Tool events are buffered in memory and flushed in batches. Reduces DB write amplification at the cost of slight delay in log visibility. Flush triggers: batch size limit (`ACTIVITY_LOG_BATCH_SIZE`), max age timer (`ACTIVITY_LOG_BATCH_MAX_AGE_MS`), and explicit flush on stage boundaries/shutdown.
+
+The queue is bounded by `ACTIVITY_LOG_QUEUE_LIMIT` to prevent unbounded memory growth — when the limit is reached, the oldest entries are dropped and a warning is logged.
 
 ## Agent Polling
 

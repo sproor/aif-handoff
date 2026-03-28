@@ -51,6 +51,7 @@ cp .env.example .env
 | `DATABASE_URL`                 | `./data/aif.sqlite` | SQLite database path                                                    |
 | `AGENT_QUERY_AUDIT_ENABLED`    | `true`              | Enable/disable query audit logs in `logs/*.log`                         |
 | `LOG_LEVEL`                    | `debug`             | Log level: `fatal`, `error`, `warn`, `info`, `debug`, `trace`           |
+| `ACTIVITY_LOG_MODE`            | `sync`              | Activity logging strategy: `sync` or `batch`                            |
 
 You can set planner/plan-checker/implementer/review budgets per project in the project edit dialog. Leave any budget field empty for unlimited.
 

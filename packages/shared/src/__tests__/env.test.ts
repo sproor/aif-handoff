@@ -42,6 +42,10 @@ describe("env validation", () => {
     expect(result.DATABASE_URL).toBe("./data/aif.sqlite");
     expect(result.AGENT_QUERY_AUDIT_ENABLED).toBe(true);
     expect(result.LOG_LEVEL).toBe("debug");
+    expect(result.ACTIVITY_LOG_MODE).toBe("sync");
+    expect(result.ACTIVITY_LOG_BATCH_SIZE).toBe(20);
+    expect(result.ACTIVITY_LOG_BATCH_MAX_AGE_MS).toBe(5000);
+    expect(result.ACTIVITY_LOG_QUEUE_LIMIT).toBe(500);
   });
 
   it("should accept missing ANTHROPIC_API_KEY (uses ~/.claude/ auth)", () => {
@@ -55,6 +59,36 @@ describe("env validation", () => {
       PORT: "8080",
     });
     expect(result.PORT).toBe(8080);
+  });
+
+  it("should accept batch activity log mode with custom limits", () => {
+    const result = validateEnv({
+      ACTIVITY_LOG_MODE: "batch",
+      ACTIVITY_LOG_BATCH_SIZE: "50",
+      ACTIVITY_LOG_BATCH_MAX_AGE_MS: "10000",
+      ACTIVITY_LOG_QUEUE_LIMIT: "1000",
+    });
+
+    expect(result.ACTIVITY_LOG_MODE).toBe("batch");
+    expect(result.ACTIVITY_LOG_BATCH_SIZE).toBe(50);
+    expect(result.ACTIVITY_LOG_BATCH_MAX_AGE_MS).toBe(10000);
+    expect(result.ACTIVITY_LOG_QUEUE_LIMIT).toBe(1000);
+  });
+
+  it("should fallback to sync for invalid ACTIVITY_LOG_MODE", () => {
+    const result = validateEnv({
+      ACTIVITY_LOG_MODE: "invalid_mode",
+    });
+
+    expect(result.ACTIVITY_LOG_MODE).toBe("sync");
+  });
+
+  it("should accept sync activity log mode explicitly", () => {
+    const result = validateEnv({
+      ACTIVITY_LOG_MODE: "sync",
+    });
+
+    expect(result.ACTIVITY_LOG_MODE).toBe("sync");
   });
 
   it("should reject invalid LOG_LEVEL", () => {
