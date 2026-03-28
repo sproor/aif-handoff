@@ -54,19 +54,47 @@ export function TaskCard({ task, onClick, overlay, density = "comfortable" }: Ta
       />
 
       <div className={`flex items-start justify-between ${isCompact ? "gap-1.5" : "gap-2"}`}>
-        <div className={`${isCompact ? "pl-1.5 text-[12px]" : "pl-2 text-sm"} font-medium leading-tight tracking-tight`}>
+        <div
+          className={`${isCompact ? "pl-1.5 text-[12px]" : "pl-2 text-sm"} font-medium leading-tight tracking-tight`}
+        >
           {task.title}
         </div>
         {priority.label !== "None" && (
-          <Badge className={`shrink-0 ${isCompact ? "px-1 py-0 text-[9px]" : "px-1.5 py-0 text-[10px]"} ${priority.className}`}>
+          <Badge
+            className={`shrink-0 ${isCompact ? "px-1 py-0 text-[9px]" : "px-1.5 py-0 text-[10px]"} ${priority.className}`}
+          >
             {priority.label}
           </Badge>
         )}
       </div>
 
       {task.description && (
-        <div className={`line-clamp-2 text-muted-foreground ${isCompact ? "mt-0.5 pl-1.5 text-[11px]" : "mt-1.5 pl-2 text-xs"}`}>
+        <div
+          className={`line-clamp-2 text-muted-foreground ${isCompact ? "mt-0.5 pl-1.5 text-[11px]" : "mt-1.5 pl-2 text-xs"}`}
+        >
           {task.description}
+        </div>
+      )}
+
+      {(task.roadmapAlias || (task.tags && task.tags.length > 0)) && (
+        <div className={`flex flex-wrap gap-1 ${isCompact ? "mt-0.5 pl-1.5" : "mt-1.5 pl-2"}`}>
+          {task.roadmapAlias && (
+            <Badge
+              className={`${isCompact ? "px-1 py-0 text-[9px]" : "px-1.5 py-0 text-[10px]"} border-violet-500/35 bg-violet-500/15 text-violet-300`}
+            >
+              {task.roadmapAlias}
+            </Badge>
+          )}
+          {task.tags
+            ?.filter((t) => !t.startsWith("rm:") && t !== "roadmap")
+            .map((tag) => (
+              <Badge
+                key={tag}
+                className={`${isCompact ? "px-1 py-0 text-[9px]" : "px-1.5 py-0 text-[10px]"} border-slate-500/35 bg-slate-500/15 text-slate-300`}
+              >
+                {tag}
+              </Badge>
+            ))}
         </div>
       )}
 
