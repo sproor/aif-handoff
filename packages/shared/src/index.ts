@@ -64,4 +64,4 @@ export {
 } from "./attachments.js";
 
 // Task usage metrics
-export { parseTaskTokenUsage, incrementTaskTokenUsage, type TaskTokenUsage } from "./taskUsage.js";
+export { parseTaskTokenUsage, type TaskTokenUsage } from "./taskUsage.js";

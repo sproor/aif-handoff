@@ -35,6 +35,83 @@ export default tseslint.config(
     },
   },
   {
+    files: ["packages/api/src/**/*.{ts,tsx}", "packages/agent/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@aif/shared",
+              importNames: ["getDb", "createTestDb", "closeDb"],
+              message: "Use centralized data access via @aif/data.",
+            },
+            {
+              name: "@aif/shared/server",
+              message: "Use centralized data access via @aif/data.",
+            },
+            {
+              name: "drizzle-orm",
+              message: "SQL query construction is restricted to @aif/data.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      "packages/api/src/**/*.{ts,tsx}",
+      "packages/agent/src/**/*.{ts,tsx}",
+      "packages/web/src/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "better-sqlite3",
+              message: "Use centralized data access via @aif/data.",
+            },
+            {
+              name: "drizzle-orm/better-sqlite3",
+              message: "Use centralized data access via @aif/data.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["packages/shared/src/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@aif/data",
+              message: "Shared layer must not depend on data-access layer.",
+            },
+            {
+              name: "@aif/api",
+              message: "Shared layer must not depend on application packages.",
+            },
+            {
+              name: "@aif/agent",
+              message: "Shared layer must not depend on application packages.",
+            },
+            {
+              name: "@aif/web",
+              message: "Shared layer must not depend on application packages.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["packages/web/src/**/*.{ts,tsx}"],
     languageOptions: {
       globals: {
@@ -46,6 +123,25 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@aif/shared",
+              message: "Web must import shared contracts from @aif/shared/browser.",
+            },
+            {
+              name: "@aif/shared/server",
+              message: "Web must not import server-side DB helpers.",
+            },
+            {
+              name: "@aif/data",
+              message: "Web must not import data-access layer modules.",
+            },
+          ],
+        },
+      ],
     },
   },
   {

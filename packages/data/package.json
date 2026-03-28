@@ -1,0 +1,25 @@
+{
+  "name": "@aif/data",
+  "version": "0.1.0",
+  "description": "Centralized data-access layer for AIF Handoff",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --passWithNoTests",
+    "coverage": "vitest run --coverage --passWithNoTests",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aif/shared": "*",
+    "drizzle-orm": "^0.39.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}

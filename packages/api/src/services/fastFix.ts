@@ -1,5 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { incrementTaskTokenUsage, parseAttachments } from "@aif/shared";
+import { parseAttachments } from "@aif/shared";
+import { incrementTaskTokenUsage } from "@aif/data";
 
 interface FastFixComment {
   author: string;

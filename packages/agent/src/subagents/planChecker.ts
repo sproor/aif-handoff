@@ -1,5 +1,4 @@
-import { eq } from "drizzle-orm";
-import { getDb, projects, tasks, logger, persistTaskPlan } from "@aif/shared";
+import { findProjectById, findTaskById, logger, persistTaskPlanForTask } from "@aif/data";
 import { executeSubagentQuery } from "../subagentQuery.js";
 
 const log = logger("plan-checker");
@@ -12,8 +11,7 @@ function normalizeMarkdownFence(text: string): string {
 }
 
 export async function runPlanChecker(taskId: string, projectRoot: string): Promise<void> {
-  const db = getDb();
-  const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
+  const task = findTaskById(taskId);
 
   if (!task) {
     log.error({ taskId }, "Task not found for plan checklist verification");
@@ -24,7 +22,7 @@ export async function runPlanChecker(taskId: string, projectRoot: string): Promi
     log.warn({ taskId }, "Skipping plan checklist verification: task has no plan");
     return;
   }
-  const project = db.select().from(projects).where(eq(projects.id, task.projectId)).get();
+  const project = findProjectById(task.projectId);
   const planCheckerBudget = project?.planCheckerMaxBudgetUsd ?? null;
 
   log.info({ taskId, title: task.title }, "Starting plan-checker agent");
@@ -55,8 +53,7 @@ Requirements:
     throw new Error("Plan checker returned empty content");
   }
 
-  persistTaskPlan({
-    db,
+  persistTaskPlanForTask({
     taskId,
     planText: normalizedPlan,
     projectRoot,

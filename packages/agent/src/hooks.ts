@@ -1,7 +1,7 @@
 import { existsSync } from "fs";
 import { resolve } from "path";
-import { eq } from "drizzle-orm";
-import { getDb, tasks, logger, findMonorepoRootFromUrl, getEnv } from "@aif/shared";
+import { appendTaskActivityLog } from "@aif/data";
+import { logger, findMonorepoRootFromUrl, getEnv } from "@aif/shared";
 import type { HookCallback } from "@anthropic-ai/claude-agent-sdk";
 
 const log = logger("agent-hooks");
@@ -57,20 +57,7 @@ const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Append new log lines to a task's agentActivityLog in the database. */
 function appendActivityLogToDb(taskId: string, newLines: string): void {
-  const db = getDb();
-  const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
-  const currentLog = task?.agentActivityLog ?? "";
-  const updatedLog = currentLog ? `${currentLog}\n${newLines}` : newLines;
-  const nowIso = new Date().toISOString();
-
-  db.update(tasks)
-    .set({
-      agentActivityLog: updatedLog,
-      lastHeartbeatAt: nowIso,
-      updatedAt: nowIso,
-    })
-    .where(eq(tasks.id, taskId))
-    .run();
+  appendTaskActivityLog(taskId, newLines);
 }
 
 /**

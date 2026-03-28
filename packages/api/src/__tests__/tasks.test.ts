@@ -4,12 +4,13 @@ import { eq } from "drizzle-orm";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createTestDb, tasks, taskComments, projects } from "@aif/shared";
+import { tasks, taskComments, projects } from "@aif/shared";
+import { createTestDb } from "@aif/shared/server";
 
 // Mock the shared db module to use test db
 const testDb = { current: createTestDb() };
-vi.mock("@aif/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@aif/shared")>();
+vi.mock("@aif/shared/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aif/shared/server")>();
   return {
     ...actual,
     getDb: () => testDb.current,

@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
-import { getDb, logger } from "@aif/shared";
+import { logger } from "@aif/shared";
+import { listProjects } from "@aif/data";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -102,8 +103,8 @@ app.route("/tasks", tasksRouter);
 // Initialize DB and start server
 const port = Number(process.env.PORT) || 3001;
 
-// Ensure DB is ready (creates file if needed)
-getDb();
+// Ensure data layer / DB is ready
+listProjects();
 
 const server = serve({ fetch: app.fetch, port }, () => {
   log.info({ port }, "API server started");

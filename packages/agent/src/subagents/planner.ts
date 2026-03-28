@@ -1,15 +1,13 @@
-import { asc, eq } from "drizzle-orm";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  getDb,
-  projects,
-  tasks,
-  taskComments,
+  findProjectById,
+  findTaskById,
+  listTaskComments,
+  persistTaskPlanForTask,
   logger,
-  persistTaskPlan,
   formatAttachmentsForPrompt,
-} from "@aif/shared";
+} from "@aif/data";
 import { executeSubagentQuery } from "../subagentQuery.js";
 
 const log = logger("planner");
@@ -88,14 +86,10 @@ function buildFixCommandText(title: string, description: string): string {
 }
 
 export async function runPlanner(taskId: string, projectRoot: string): Promise<void> {
-  const db = getDb();
-  const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
-  const comments = db
-    .select()
-    .from(taskComments)
-    .where(eq(taskComments.taskId, taskId))
-    .orderBy(asc(taskComments.createdAt), asc(taskComments.id))
-    .all();
+  const task = findTaskById(taskId);
+  const comments = listTaskComments(taskId).sort(
+    (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+  );
 
   if (!task) {
     log.error({ taskId }, "Task not found for planning");
@@ -104,7 +98,7 @@ export async function runPlanner(taskId: string, projectRoot: string): Promise<v
 
   const executionName = task.isFix ? FIX_SKILL_NAME : AGENT_NAME;
   log.info({ taskId, title: task.title, isFix: task.isFix }, "Starting planning flow");
-  const project = db.select().from(projects).where(eq(projects.id, task.projectId)).get();
+  const project = findProjectById(task.projectId);
   const plannerBudget = project?.plannerMaxBudgetUsd ?? null;
 
   const hasComments = comments.length > 0;
@@ -153,8 +147,7 @@ Create a concrete, implementation-ready plan using iterative refinement via plan
   const diskPlan = readPlanFromDisk(projectRoot, rawResult);
   const resultText = diskPlan ?? normalizePlannerResult(rawResult);
 
-  persistTaskPlan({
-    db,
+  persistTaskPlanForTask({
     taskId,
     planText: resultText,
     projectRoot,

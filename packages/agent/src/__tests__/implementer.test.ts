@@ -3,13 +3,14 @@ import { eq } from "drizzle-orm";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createTestDb, projects, taskComments, tasks } from "@aif/shared";
+import { projects, taskComments, tasks } from "@aif/shared";
+import { createTestDb } from "@aif/shared/server";
 
 const testDb = { current: createTestDb() };
 const queryMock = vi.fn();
 
-vi.mock("@aif/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@aif/shared")>();
+vi.mock("@aif/shared/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aif/shared/server")>();
   return {
     ...actual,
     getDb: () => testDb.current,

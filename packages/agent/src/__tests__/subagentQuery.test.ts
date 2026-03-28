@@ -8,20 +8,37 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: queryMock,
 }));
 
-vi.mock("@aif/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@aif/shared")>();
-  const fakeDb = {
-    update: () => ({
-      set: () => ({
-        where: () => ({
-          run: () => undefined,
-        }),
+const fakeDb = {
+  update: () => ({
+    set: () => ({
+      where: () => ({
+        run: () => undefined,
       }),
     }),
-  };
+  }),
+};
+
+vi.mock("@aif/shared/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aif/shared/server")>();
   return {
     ...actual,
     getDb: () => fakeDb,
+  };
+});
+
+vi.mock("@aif/data", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aif/data")>();
+  return {
+    ...actual,
+    incrementTaskTokenUsage: incrementTaskTokenUsageMock,
+    updateTaskHeartbeat: () => undefined,
+  };
+});
+
+vi.mock("@aif/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aif/shared")>();
+  return {
+    ...actual,
     getEnv: () => ({
       PORT: 3001,
       POLL_INTERVAL_MS: 30000,
@@ -36,7 +53,6 @@ vi.mock("@aif/shared", async (importOriginal) => {
       AGENT_QUERY_AUDIT_ENABLED: true,
       LOG_LEVEL: "debug",
     }),
-    incrementTaskTokenUsage: incrementTaskTokenUsageMock,
     logger: () => ({
       info: () => undefined,
       warn: () => undefined,

@@ -3,8 +3,8 @@
  * Extracted from coordinator.ts for single responsibility.
  */
 
-import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
-import { getDb, tasks, logger, getEnv, type TaskStatus } from "@aif/shared";
+import { listDueBlockedExternalTasks, listStaleInProgressTasks, setTaskFields } from "@aif/data";
+import { logger, getEnv, type TaskStatus } from "@aif/shared";
 import { logActivity } from "./hooks.js";
 import { notifyTaskBroadcast } from "./notifier.js";
 
@@ -32,39 +32,24 @@ export function parseUpdatedAtMs(value: string): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-export function releaseDueBlockedTasks(db: ReturnType<typeof getDb>): void {
+export function releaseDueBlockedTasks(): void {
   const nowIso = new Date().toISOString();
-  // Use idx_tasks_status_retry: filter status + due retry_after in SQL
-  const blockedTasks = db
-    .select()
-    .from(tasks)
-    .where(
-      and(
-        eq(tasks.status, "blocked_external"),
-        isNotNull(tasks.retryAfter),
-        lte(tasks.retryAfter, nowIso),
-        isNotNull(tasks.blockedFromStatus),
-      ),
-    )
-    .all();
+  const blockedTasks = listDueBlockedExternalTasks(nowIso);
 
   log.debug({ candidateCount: blockedTasks.length }, "Due blocked tasks found for release");
 
   for (const task of blockedTasks) {
     if (!task.blockedFromStatus) continue;
 
-    db.update(tasks)
-      .set({
-        status: task.blockedFromStatus,
-        blockedReason: null,
-        blockedFromStatus: null,
-        retryAfter: null,
-        retryCount: 0,
-        lastHeartbeatAt: nowIso,
-        updatedAt: nowIso,
-      })
-      .where(eq(tasks.id, task.id))
-      .run();
+    setTaskFields(task.id, {
+      status: task.blockedFromStatus,
+      blockedReason: null,
+      blockedFromStatus: null,
+      retryAfter: null,
+      retryCount: 0,
+      lastHeartbeatAt: nowIso,
+      updatedAt: nowIso,
+    });
     void notifyTaskBroadcast(task.id, "task:moved");
     logActivity(
       task.id,
@@ -79,14 +64,10 @@ export function releaseDueBlockedTasks(db: ReturnType<typeof getDb>): void {
   }
 }
 
-export function recoverStaleInProgressTasks(db: ReturnType<typeof getDb>): void {
+export function recoverStaleInProgressTasks(): void {
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
-  const candidates = db
-    .select()
-    .from(tasks)
-    .where(inArray(tasks.status, ["planning", "implementing", "review"]))
-    .all();
+  const candidates = listStaleInProgressTasks();
 
   for (const task of candidates) {
     const heartbeatMs = task.lastHeartbeatAt ? parseUpdatedAtMs(task.lastHeartbeatAt) : null;
@@ -106,17 +87,14 @@ export function recoverStaleInProgressTasks(db: ReturnType<typeof getDb>): void 
     const reasonBase = `Watchdog: task stale in ${task.status} for ${ageMinutes}m`;
 
     if (retryCount >= STALE_MAX_RETRY) {
-      db.update(tasks)
-        .set({
-          status: "blocked_external",
-          blockedReason: `${reasonBase}; auto-retry limit reached (${STALE_MAX_RETRY})`,
-          blockedFromStatus: resumeStatus,
-          retryAfter: null,
-          lastHeartbeatAt: nowIso,
-          updatedAt: nowIso,
-        })
-        .where(eq(tasks.id, task.id))
-        .run();
+      setTaskFields(task.id, {
+        status: "blocked_external",
+        blockedReason: `${reasonBase}; auto-retry limit reached (${STALE_MAX_RETRY})`,
+        blockedFromStatus: resumeStatus,
+        retryAfter: null,
+        lastHeartbeatAt: nowIso,
+        updatedAt: nowIso,
+      });
       void notifyTaskBroadcast(task.id, "task:moved");
       logActivity(
         task.id,
@@ -133,18 +111,15 @@ export function recoverStaleInProgressTasks(db: ReturnType<typeof getDb>): void 
 
     const backoffMinutes = getRandomBackoffMinutes();
     const retryAfter = new Date(now + backoffMinutes * 60_000).toISOString();
-    db.update(tasks)
-      .set({
-        status: "blocked_external",
-        blockedReason: `${reasonBase}; auto-recover scheduled`,
-        blockedFromStatus: resumeStatus,
-        retryAfter,
-        retryCount: retryCount + 1,
-        lastHeartbeatAt: nowIso,
-        updatedAt: nowIso,
-      })
-      .where(eq(tasks.id, task.id))
-      .run();
+    setTaskFields(task.id, {
+      status: "blocked_external",
+      blockedReason: `${reasonBase}; auto-recover scheduled`,
+      blockedFromStatus: resumeStatus,
+      retryAfter,
+      retryCount: retryCount + 1,
+      lastHeartbeatAt: nowIso,
+      updatedAt: nowIso,
+    });
     void notifyTaskBroadcast(task.id, "task:moved");
     logActivity(
       task.id,

@@ -1,22 +1,16 @@
-import { asc, eq } from "drizzle-orm";
+import { applyHumanTaskEvent, looksLikeFullPlanUpdate, type TaskEvent } from "@aif/shared";
 import {
-  applyHumanTaskEvent,
-  getDb,
-  looksLikeFullPlanUpdate,
-  persistTaskPlan,
-  projects,
-  taskComments,
-  tasks,
-  type TaskEvent,
-} from "@aif/shared";
+  findProjectById,
+  findTaskById,
+  getLatestHumanComment,
+  persistTaskPlanForTask,
+  setTaskFields,
+  type TaskRow,
+} from "@aif/data";
 import { runFastFixQuery, withTimeout } from "./fastFix.js";
 
-type Db = ReturnType<typeof getDb>;
-type TaskRow = typeof tasks.$inferSelect;
-
 interface EventHandlerInput {
-  db: Db;
-  task: TaskRow;
+  taskId: string;
   event: TaskEvent;
 }
 
@@ -25,7 +19,10 @@ export type EventHandlerResult =
   | { ok: true; task: TaskRow; broadcastType: "task:moved" | "task:updated" };
 
 async function handleFastFix(input: EventHandlerInput): Promise<EventHandlerResult> {
-  const { db, task } = input;
+  const task = findTaskById(input.taskId);
+  if (!task) {
+    return { ok: false, status: 404, error: "Task not found" };
+  }
   if (task.status !== "plan_ready") {
     return { ok: false, status: 409, error: "fast_fix is only allowed from plan_ready" };
   }
@@ -33,14 +30,7 @@ async function handleFastFix(input: EventHandlerInput): Promise<EventHandlerResu
     return { ok: false, status: 409, error: "fast_fix is not needed when autoMode=true" };
   }
 
-  const latestComment = db
-    .select()
-    .from(taskComments)
-    .where(eq(taskComments.taskId, task.id))
-    .orderBy(asc(taskComments.createdAt), asc(taskComments.id))
-    .all()
-    .filter((comment) => comment.author === "human")
-    .at(-1);
+  const latestComment = getLatestHumanComment(task.id);
   if (!latestComment) {
     return {
       ok: false,
@@ -49,7 +39,7 @@ async function handleFastFix(input: EventHandlerInput): Promise<EventHandlerResu
     };
   }
 
-  const project = db.select().from(projects).where(eq(projects.id, task.projectId)).get();
+  const project = findProjectById(task.projectId);
   if (!project) {
     return { ok: false, status: 404, error: "Project not found for task" };
   }
@@ -104,8 +94,7 @@ async function handleFastFix(input: EventHandlerInput): Promise<EventHandlerResu
   }
 
   const nowIso = new Date().toISOString();
-  persistTaskPlan({
-    db,
+  persistTaskPlanForTask({
     taskId: task.id,
     projectRoot: project.rootPath,
     isFix: task.isFix,
@@ -113,15 +102,12 @@ async function handleFastFix(input: EventHandlerInput): Promise<EventHandlerResu
     updatedAt: nowIso,
   });
 
-  db.update(tasks)
-    .set({
-      reworkRequested: false,
-      updatedAt: nowIso,
-    })
-    .where(eq(tasks.id, task.id))
-    .run();
+  setTaskFields(task.id, {
+    reworkRequested: false,
+    updatedAt: nowIso,
+  });
 
-  const updated = db.select().from(tasks).where(eq(tasks.id, task.id)).get();
+  const updated = findTaskById(task.id);
   if (!updated) {
     return { ok: false, status: 404, error: "Task not found" };
   }
@@ -130,19 +116,20 @@ async function handleFastFix(input: EventHandlerInput): Promise<EventHandlerResu
 }
 
 function handleRegularTransition(input: EventHandlerInput): EventHandlerResult {
-  const { db, task, event } = input;
+  const task = findTaskById(input.taskId);
+  if (!task) {
+    return { ok: false, status: 404, error: "Task not found" };
+  }
+  const { event } = input;
   const transition = applyHumanTaskEvent(task, event);
   if (!transition.ok) {
     return { ok: false, status: 409, error: transition.error };
   }
 
   const nowIso = new Date().toISOString();
-  db.update(tasks)
-    .set({ ...transition.patch, lastHeartbeatAt: nowIso, updatedAt: nowIso })
-    .where(eq(tasks.id, task.id))
-    .run();
+  setTaskFields(task.id, { ...transition.patch, lastHeartbeatAt: nowIso, updatedAt: nowIso });
 
-  const updated = db.select().from(tasks).where(eq(tasks.id, task.id)).get();
+  const updated = findTaskById(task.id);
   if (!updated) {
     return { ok: false, status: 404, error: "Task not found" };
   }

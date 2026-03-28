@@ -1,5 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { incrementTaskTokenUsage } from "@aif/shared";
+import { incrementTaskTokenUsage } from "@aif/data";
 import { getClaudePath } from "./hooks.js";
 
 type ReviewGateResult = { status: "success" } | { status: "request_changes"; fixes: string };

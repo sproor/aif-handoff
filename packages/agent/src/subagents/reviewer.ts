@@ -1,5 +1,10 @@
-import { eq } from "drizzle-orm";
-import { getDb, projects, tasks, logger, formatAttachmentsForPrompt } from "@aif/shared";
+import {
+  findProjectById,
+  findTaskById,
+  logger,
+  setTaskFields,
+  formatAttachmentsForPrompt,
+} from "@aif/data";
 import { logActivity } from "../hooks.js";
 import { executeSubagentQuery, startHeartbeat } from "../subagentQuery.js";
 
@@ -24,15 +29,14 @@ async function runSidecar(
 }
 
 export async function runReviewer(taskId: string, projectRoot: string): Promise<void> {
-  const db = getDb();
-  const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
+  const task = findTaskById(taskId);
 
   if (!task) {
     log.error({ taskId }, "Task not found for review");
     throw new Error(`Task ${taskId} not found`);
   }
 
-  const project = db.select().from(projects).where(eq(projects.id, task.projectId)).get();
+  const project = findProjectById(task.projectId);
   const sidecarBudget = project?.reviewSidecarMaxBudgetUsd ?? null;
 
   log.info({ taskId, title: task.title }, "Starting review + security sidecars");
@@ -80,13 +84,10 @@ Focus on auth, validation, secrets, injection, and unsafe shell/file handling in
 
     const combinedReview = `## Code Review\n\n${reviewResult}\n\n## Security Audit\n\n${securityResult}`;
 
-    db.update(tasks)
-      .set({
-        reviewComments: combinedReview,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(tasks.id, taskId))
-      .run();
+    setTaskFields(taskId, {
+      reviewComments: combinedReview,
+      updatedAt: new Date().toISOString(),
+    });
 
     logActivity(taskId, "Agent", "review stage complete (review-sidecar + security-sidecar)");
     log.debug({ taskId }, "Review comments saved to task");

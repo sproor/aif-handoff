@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { existsSync, readFileSync } from "node:fs";
-import { projects, logger, getCanonicalPlanPath, persistTaskPlan } from "@aif/shared";
-import { eq } from "drizzle-orm";
+import { logger, getCanonicalPlanPath } from "@aif/shared";
+import { findProjectByTaskId, persistTaskPlanForTask } from "@aif/data";
 import {
   createTaskSchema,
   updateTaskSchema,
@@ -33,7 +33,7 @@ export const tasksRouter = new Hono();
 tasksRouter.post("/:id/broadcast", zValidator("json", broadcastTaskSchema), async (c) => {
   const { id } = c.req.param();
   const { type } = c.req.valid("json");
-  const { task } = findTaskById(id);
+  const task = findTaskById(id);
   if (!task) return c.json({ error: "Task not found" }, 404);
 
   broadcast({ type, payload: toTaskResponse(task) });
@@ -78,7 +78,7 @@ tasksRouter.post("/", zValidator("json", createTaskSchema), async (c) => {
 // GET /tasks/:id — full detail
 tasksRouter.get("/:id", (c) => {
   const { id } = c.req.param();
-  const { task } = findTaskById(id);
+  const task = findTaskById(id);
   if (!task) {
     log.debug({ taskId: id }, "Task not found");
     return c.json({ error: "Task not found" }, 404);
@@ -91,12 +91,12 @@ tasksRouter.get("/:id", (c) => {
 // GET /tasks/:id/plan-file-status — check if canonical physical plan file already exists
 tasksRouter.get("/:id/plan-file-status", (c) => {
   const { id } = c.req.param();
-  const { db, task: existing } = findTaskById(id);
+  const existing = findTaskById(id);
   if (!existing) {
     return c.json({ error: "Task not found" }, 404);
   }
 
-  const project = db.select().from(projects).where(eq(projects.id, existing.projectId)).get();
+  const project = findProjectByTaskId(id);
   if (!project) {
     return c.json({ error: "Project not found for task" }, 404);
   }
@@ -115,7 +115,7 @@ tasksRouter.get("/:id/plan-file-status", (c) => {
 // GET /tasks/:id/comments — list comments
 tasksRouter.get("/:id/comments", (c) => {
   const { id } = c.req.param();
-  const { task } = findTaskById(id);
+  const task = findTaskById(id);
   if (!task) {
     return c.json({ error: "Task not found" }, 404);
   }
@@ -128,7 +128,7 @@ tasksRouter.get("/:id/comments", (c) => {
 tasksRouter.post("/:id/comments", zValidator("json", createTaskCommentSchema), (c) => {
   const { id } = c.req.param();
   const body = c.req.valid("json");
-  const { task } = findTaskById(id);
+  const task = findTaskById(id);
   if (!task) {
     return c.json({ error: "Task not found" }, 404);
   }
@@ -146,7 +146,7 @@ tasksRouter.post("/:id/comments", zValidator("json", createTaskCommentSchema), (
 tasksRouter.put("/:id", zValidator("json", updateTaskSchema), async (c) => {
   const { id } = c.req.param();
   const body = c.req.valid("json");
-  const { db, task: existing } = findTaskById(id);
+  const existing = findTaskById(id);
   if (!existing) {
     return c.json({ error: "Task not found" }, 404);
   }
@@ -159,12 +159,11 @@ tasksRouter.put("/:id", zValidator("json", updateTaskSchema), async (c) => {
 
   const hasPlanUpdate = Object.prototype.hasOwnProperty.call(restBody, "plan");
   if (hasPlanUpdate) {
-    const project = db.select().from(projects).where(eq(projects.id, existing.projectId)).get();
+    const project = findProjectByTaskId(id);
     if (!project) {
       return c.json({ error: "Project not found for task" }, 404);
     }
-    persistTaskPlan({
-      db,
+    persistTaskPlanForTask({
       taskId: id,
       projectRoot: project.rootPath,
       isFix: existing.isFix,
@@ -185,12 +184,12 @@ tasksRouter.put("/:id", zValidator("json", updateTaskSchema), async (c) => {
 // POST /tasks/:id/sync-plan — sync DB plan with physical plan file
 tasksRouter.post("/:id/sync-plan", (c) => {
   const { id } = c.req.param();
-  const { db, task: existing } = findTaskById(id);
+  const existing = findTaskById(id);
   if (!existing) {
     return c.json({ error: "Task not found" }, 404);
   }
 
-  const project = db.select().from(projects).where(eq(projects.id, existing.projectId)).get();
+  const project = findProjectByTaskId(id);
   if (!project) {
     return c.json({ error: "Project not found for task" }, 404);
   }
@@ -206,8 +205,7 @@ tasksRouter.post("/:id/sync-plan", (c) => {
   const filePlan = readFileSync(canonicalPlanPath, "utf8");
   const normalizedPlan = filePlan.trim().length > 0 ? filePlan : null;
 
-  persistTaskPlan({
-    db,
+  persistTaskPlanForTask({
     taskId: id,
     planText: normalizedPlan,
     projectRoot: project.rootPath,
@@ -226,7 +224,7 @@ tasksRouter.post("/:id/sync-plan", (c) => {
 // DELETE /tasks/:id
 tasksRouter.delete("/:id", (c) => {
   const { id } = c.req.param();
-  const { task: existing } = findTaskById(id);
+  const existing = findTaskById(id);
   if (!existing) {
     return c.json({ error: "Task not found" }, 404);
   }
@@ -242,14 +240,13 @@ tasksRouter.delete("/:id", (c) => {
 tasksRouter.post("/:id/events", zValidator("json", taskEventSchema), async (c) => {
   const { id } = c.req.param();
   const { event } = c.req.valid("json");
-  const { db, task: existing } = findTaskById(id);
+  const existing = findTaskById(id);
   if (!existing) {
     return c.json({ error: "Task not found" }, 404);
   }
   try {
     const handled = await handleTaskEvent({
-      db,
-      task: existing,
+      taskId: id,
       event,
     });
     if (!handled.ok) {
@@ -279,7 +276,7 @@ tasksRouter.post("/:id/events", zValidator("json", taskEventSchema), async (c) =
 tasksRouter.patch("/:id/position", zValidator("json", reorderTaskSchema), async (c) => {
   const { id } = c.req.param();
   const { position } = c.req.valid("json");
-  const { task: existing } = findTaskById(id);
+  const existing = findTaskById(id);
   if (!existing) {
     return c.json({ error: "Task not found" }, 404);
   }

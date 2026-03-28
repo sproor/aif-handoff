@@ -1,9 +1,11 @@
-import { and, asc, eq, inArray, or } from "drizzle-orm";
 import {
-  getDb,
-  tasks,
-  projects,
-  taskComments,
+  createTaskComment,
+  findCoordinatorTaskCandidate,
+  findProjectById,
+  findTaskById,
+  updateTaskStatus as updateTaskStatusRow,
+} from "@aif/data";
+import {
   logger,
   initProjectDirectory,
   getEnv,
@@ -103,51 +105,21 @@ async function runStageWithTimeout(
 
 /** Update task status with optional field overrides and broadcast. */
 function updateTaskStatus(
-  db: ReturnType<typeof getDb>,
   taskId: string,
   status: TaskStatus,
   extra: Record<string, unknown> = {},
 ): void {
-  const nowIso = new Date().toISOString();
-  db.update(tasks)
-    .set({
-      status,
-      lastHeartbeatAt: nowIso,
-      updatedAt: nowIso,
-      ...extra,
-    } as Record<string, unknown>)
-    .where(eq(tasks.id, taskId))
-    .run();
+  updateTaskStatusRow(taskId, status, extra);
   void notifyTaskBroadcast(taskId, "task:moved");
 }
 
 export async function pollAndProcess(): Promise<void> {
-  const db = getDb();
-
   log.debug("Starting poll cycle");
-  releaseDueBlockedTasks(db);
-  recoverStaleInProgressTasks(db);
+  releaseDueBlockedTasks();
+  recoverStaleInProgressTasks();
 
   for (const stage of PIPELINE) {
-    // Find one task at the source status
-    const stageFilter =
-      stage.label === "implementer"
-        ? or(
-            eq(tasks.status, "implementing"),
-            and(eq(tasks.status, "plan_ready"), eq(tasks.autoMode, true)),
-          )
-        : stage.label === "plan-checker"
-          ? and(eq(tasks.status, "plan_ready"), eq(tasks.autoMode, true))
-          : inArray(tasks.status, stage.from);
-
-    // Deterministic pickup: lowest position first (uses idx_tasks_status index)
-    const task = db
-      .select()
-      .from(tasks)
-      .where(stageFilter)
-      .orderBy(asc(tasks.position), asc(tasks.createdAt))
-      .limit(1)
-      .get();
+    const task = findCoordinatorTaskCandidate(stage.label);
 
     if (!task) {
       log.debug({ stage: stage.label }, "No tasks to process");
@@ -160,7 +132,7 @@ export async function pollAndProcess(): Promise<void> {
     );
 
     // Get the project's rootPath
-    const project = db.select().from(projects).where(eq(projects.id, task.projectId)).get();
+    const project = findProjectById(task.projectId);
 
     if (!project) {
       log.error(
@@ -180,7 +152,7 @@ export async function pollAndProcess(): Promise<void> {
     const sourceStatus = task.status;
 
     // Set intermediate status
-    updateTaskStatus(db, task.id, stage.inProgress);
+    updateTaskStatus(task.id, stage.inProgress);
 
     log.debug(
       { taskId: task.id, from: sourceStatus, to: stage.inProgress },
@@ -193,7 +165,7 @@ export async function pollAndProcess(): Promise<void> {
       // Flush buffered activity logs at stage boundary (batch mode)
       flushActivityQueue(task.id);
 
-      const refreshedTask = db.select().from(tasks).where(eq(tasks.id, task.id)).get();
+      const refreshedTask = findTaskById(task.id);
 
       if (stage.label === "reviewer" && refreshedTask?.autoMode) {
         logActivity(
@@ -220,16 +192,14 @@ export async function pollAndProcess(): Promise<void> {
             "## Required Fixes",
             reviewGate.fixes,
           ].join("\n");
-          db.insert(taskComments)
-            .values({
-              taskId: task.id,
-              author: "agent",
-              message: reviewSummary,
-              attachments: "[]",
-            })
-            .run();
+          createTaskComment({
+            taskId: task.id,
+            author: "agent",
+            message: reviewSummary,
+            attachments: [],
+          });
 
-          updateTaskStatus(db, task.id, "implementing", {
+          updateTaskStatus(task.id, "implementing", {
             ...CLEAN_STATE_RESET,
             reworkRequested: true,
           });
@@ -246,20 +216,18 @@ export async function pollAndProcess(): Promise<void> {
           continue;
         }
 
-        db.insert(taskComments)
-          .values({
-            taskId: task.id,
-            author: "agent",
-            message: [
-              "## Auto Review Gate Summary",
-              "- Outcome: success",
-              "- Required fixes: 0",
-              "",
-              "Review comments passed auto-gate; transitioning task to Done.",
-            ].join("\n"),
-            attachments: "[]",
-          })
-          .run();
+        createTaskComment({
+          taskId: task.id,
+          author: "agent",
+          message: [
+            "## Auto Review Gate Summary",
+            "- Outcome: success",
+            "- Required fixes: 0",
+            "",
+            "Review comments passed auto-gate; transitioning task to Done.",
+          ].join("\n"),
+          attachments: [],
+        });
 
         logActivity(
           task.id,
@@ -269,7 +237,7 @@ export async function pollAndProcess(): Promise<void> {
       }
 
       // Success — move to next status
-      updateTaskStatus(db, task.id, stage.onSuccess, CLEAN_STATE_RESET);
+      updateTaskStatus(task.id, stage.onSuccess, CLEAN_STATE_RESET);
 
       log.info(
         { taskId: task.id, from: stage.inProgress, to: stage.onSuccess },
@@ -280,7 +248,7 @@ export async function pollAndProcess(): Promise<void> {
         const reason = err instanceof Error ? err.message : String(err);
         runtimeCounters.fastRetryStreamInterruptions += 1;
 
-        updateTaskStatus(db, task.id, sourceStatus, {
+        updateTaskStatus(task.id, sourceStatus, {
           blockedReason: null,
           blockedFromStatus: null,
           retryAfter: null,
@@ -301,7 +269,7 @@ export async function pollAndProcess(): Promise<void> {
         const retryAfter = new Date(Date.now() + backoffMinutes * 60_000).toISOString();
         const reason = err instanceof Error ? err.message : String(err);
 
-        updateTaskStatus(db, task.id, "blocked_external", {
+        updateTaskStatus(task.id, "blocked_external", {
           blockedReason: reason,
           blockedFromStatus: sourceStatus,
           retryAfter,
@@ -319,7 +287,7 @@ export async function pollAndProcess(): Promise<void> {
         );
       } else {
         // Failure — revert to previous status
-        updateTaskStatus(db, task.id, sourceStatus);
+        updateTaskStatus(task.id, sourceStatus);
 
         log.error(
           { taskId: task.id, stage: stage.label, err },

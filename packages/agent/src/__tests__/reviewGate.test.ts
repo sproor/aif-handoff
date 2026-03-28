@@ -17,8 +17,8 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   }),
 }));
 
-vi.mock("@aif/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@aif/shared")>();
+vi.mock("@aif/data", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aif/data")>();
   return {
     ...actual,
     incrementTaskTokenUsage: vi.fn(),

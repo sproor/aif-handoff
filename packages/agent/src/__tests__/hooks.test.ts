@@ -1,16 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestDb, tasks, projects } from "@aif/shared";
+import { tasks, projects } from "@aif/shared";
+import { createTestDb } from "@aif/shared/server";
 
 const testDb = { current: createTestDb() };
 
-vi.mock("@aif/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@aif/shared")>();
+vi.mock("@aif/shared/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aif/shared/server")>();
   return {
     ...actual,
     getDb: () => testDb.current,
-    getEnv: vi.fn(),
   };
+});
+
+vi.mock("@aif/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aif/shared")>();
+  return { ...actual, getEnv: vi.fn() };
 });
 
 const { getEnv } = await import("@aif/shared");

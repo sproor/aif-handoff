@@ -9,7 +9,7 @@ dist/
 .turbo/
 
 # Database
-data/
+/data/
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal

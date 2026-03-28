@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { eq } from "drizzle-orm";
-import { getDb, getEnv, tasks, logger, incrementTaskTokenUsage } from "@aif/shared";
+import { incrementTaskTokenUsage, updateTaskHeartbeat } from "@aif/data";
+import { getEnv, logger } from "@aif/shared";
 import { createActivityLogger, createSubagentLogger, logActivity, getClaudePath } from "./hooks.js";
 import { writeQueryAudit } from "./queryAudit.js";
 import {
@@ -269,13 +269,8 @@ export async function executeSubagentQuery(
 
 /** Start a periodic heartbeat that updates the task's lastHeartbeatAt. */
 export function startHeartbeat(taskId: string): NodeJS.Timeout {
-  const db = getDb();
   return setInterval(() => {
-    const nowIso = new Date().toISOString();
-    db.update(tasks)
-      .set({ lastHeartbeatAt: nowIso, updatedAt: nowIso })
-      .where(eq(tasks.id, taskId))
-      .run();
+    updateTaskHeartbeat(taskId);
   }, HEARTBEAT_INTERVAL_MS);
 }
 

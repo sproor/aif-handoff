@@ -1,27 +1,16 @@
-import { eq } from "drizzle-orm";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { initProjectDirectory, validateProjectRootPath, logger } from "@aif/shared";
 import {
-  getDb,
-  projects,
-  initProjectDirectory,
-  validateProjectRootPath,
-  logger,
-} from "@aif/shared";
-
-type ProjectRow = typeof projects.$inferSelect;
+  createProject as createProjectRecord,
+  deleteProject as deleteProjectRecord,
+  findProjectById,
+  listProjects,
+  type ProjectRow,
+  updateProject as updateProjectRecord,
+} from "@aif/data";
 
 const log = logger("projects-repo");
-
-export function listProjects(): ProjectRow[] {
-  const db = getDb();
-  return db.select().from(projects).all();
-}
-
-export function findProjectById(id: string): ProjectRow | undefined {
-  const db = getDb();
-  return db.select().from(projects).where(eq(projects.id, id)).get();
-}
 
 export function createProject(input: {
   name: string;
@@ -34,34 +23,18 @@ export function createProject(input: {
   const pathError = validateProjectRootPath(input.rootPath);
   if (pathError) return { project: undefined, pathError };
 
-  const db = getDb();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-
-  db.insert(projects)
-    .values({
-      id,
-      name: input.name,
-      rootPath: input.rootPath,
-      plannerMaxBudgetUsd: input.plannerMaxBudgetUsd ?? null,
-      planCheckerMaxBudgetUsd: input.planCheckerMaxBudgetUsd ?? null,
-      implementerMaxBudgetUsd: input.implementerMaxBudgetUsd ?? null,
-      reviewSidecarMaxBudgetUsd: input.reviewSidecarMaxBudgetUsd ?? null,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
+  const project = createProjectRecord(input);
 
   try {
     initProjectDirectory(input.rootPath);
   } catch (err) {
     log.warn(
-      { projectId: id, rootPath: input.rootPath, err },
+      { projectId: project?.id, rootPath: input.rootPath, err },
       "Project directory initialization failed",
     );
   }
 
-  return { project: db.select().from(projects).where(eq(projects.id, id)).get() };
+  return { project };
 }
 
 export function updateProject(
@@ -78,26 +51,11 @@ export function updateProject(
   const pathError = validateProjectRootPath(input.rootPath);
   if (pathError) return { project: undefined, pathError };
 
-  const db = getDb();
-  db.update(projects)
-    .set({
-      name: input.name,
-      rootPath: input.rootPath,
-      plannerMaxBudgetUsd: input.plannerMaxBudgetUsd ?? null,
-      planCheckerMaxBudgetUsd: input.planCheckerMaxBudgetUsd ?? null,
-      implementerMaxBudgetUsd: input.implementerMaxBudgetUsd ?? null,
-      reviewSidecarMaxBudgetUsd: input.reviewSidecarMaxBudgetUsd ?? null,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(projects.id, id))
-    .run();
-
-  return { project: db.select().from(projects).where(eq(projects.id, id)).get() };
+  return { project: updateProjectRecord(id, input) };
 }
 
 export function deleteProject(id: string): void {
-  const db = getDb();
-  db.delete(projects).where(eq(projects.id, id)).run();
+  deleteProjectRecord(id);
 }
 
 export function getProjectMcpServers(projectId: string): Record<string, unknown> {
@@ -115,3 +73,5 @@ export function getProjectMcpServers(projectId: string): Record<string, unknown>
     return {};
   }
 }
+
+export { listProjects, findProjectById };

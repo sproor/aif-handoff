@@ -1,18 +1,18 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { asc, eq } from "drizzle-orm";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  getDb,
-  projects,
-  taskComments,
-  tasks,
+  findProjectById,
+  findTaskById,
+  getLatestHumanComment,
+  persistTaskPlanForTask,
+  setTaskFields,
   logger,
   incrementTaskTokenUsage,
-  persistTaskPlan,
   formatAttachmentsForPrompt,
   looksLikeFullPlanUpdate,
-} from "@aif/shared";
+  type TaskRow,
+} from "@aif/data";
 import { logActivity } from "../hooks.js";
 import { executeSubagentQuery } from "../subagentQuery.js";
 import { createClaudeStderrCollector } from "../claudeDiagnostics.js";
@@ -81,7 +81,7 @@ function getChecklistProgress(planText: string | null): {
 }
 
 async function runChecklistSyncQuery(input: {
-  task: typeof tasks.$inferSelect;
+  task: TaskRow;
   projectRoot: string;
   planText: string;
   implementationResult: string;
@@ -174,14 +174,13 @@ function formatParsedPlanTasksForPrompt(
 }
 
 export async function runImplementer(taskId: string, projectRoot: string): Promise<void> {
-  const db = getDb();
-  const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
+  const task = findTaskById(taskId);
 
   if (!task) {
     log.error({ taskId }, "Task not found for implementation");
     throw new Error(`Task ${taskId} not found`);
   }
-  const project = db.select().from(projects).where(eq(projects.id, task.projectId)).get();
+  const project = findProjectById(task.projectId);
   const implementerBudget = project?.implementerMaxBudgetUsd ?? null;
   const canonicalPlan = readCanonicalPlan(task, projectRoot);
   const selectedPlan = canonicalPlan ?? task.plan;
@@ -204,38 +203,25 @@ ${selectedPlan ?? "No in-task plan copy is available."}`
   const hasParallelLayer = layerComputation.layers.some((layer) => layer.length > 1);
   const layerSummary = formatLayerSummary(layerComputation.layers);
   const pendingTaskCount = layerComputation.tasks.length;
-  const latestHumanComment = task.reworkRequested
-    ? (db
-        .select()
-        .from(taskComments)
-        .where(eq(taskComments.taskId, taskId))
-        .orderBy(asc(taskComments.createdAt), asc(taskComments.id))
-        .all()
-        .filter((comment) => comment.author === "human")
-        .at(-1) ?? null)
-    : null;
+  const latestHumanComment = task.reworkRequested ? (getLatestHumanComment(taskId) ?? null) : null;
 
   if (selectedPlan && parsedTaskCount > 0 && pendingTaskCount === 0 && !task.reworkRequested) {
     const nowIso = new Date().toISOString();
     const noOpResult =
       "No pending tasks detected in plan (all tasks already completed). " +
       "Implementer skipped coordinator execution.";
-    persistTaskPlan({
-      db,
+    persistTaskPlanForTask({
       taskId,
       planText: selectedPlan,
       projectRoot,
       isFix: task.isFix,
       updatedAt: nowIso,
     });
-    db.update(tasks)
-      .set({
-        implementationLog: noOpResult,
-        lastHeartbeatAt: nowIso,
-        updatedAt: nowIso,
-      })
-      .where(eq(tasks.id, taskId))
-      .run();
+    setTaskFields(taskId, {
+      implementationLog: noOpResult,
+      lastHeartbeatAt: nowIso,
+      updatedAt: nowIso,
+    });
     logActivity(taskId, "Agent", `${AGENT_NAME} skipped — no pending tasks in plan`);
     log.info({ taskId }, "Implementer no-op: all plan tasks already completed");
     return;
@@ -377,8 +363,7 @@ Execution rules:
 
   const nowIso = new Date().toISOString();
   if (syncedPlan) {
-    persistTaskPlan({
-      db,
+    persistTaskPlanForTask({
       taskId,
       planText: syncedPlan,
       projectRoot,
@@ -387,15 +372,12 @@ Execution rules:
     });
   }
 
-  db.update(tasks)
-    .set({
-      implementationLog: enrichedResult,
-      reworkRequested: false,
-      lastHeartbeatAt: nowIso,
-      updatedAt: nowIso,
-    })
-    .where(eq(tasks.id, taskId))
-    .run();
+  setTaskFields(taskId, {
+    implementationLog: enrichedResult,
+    reworkRequested: false,
+    lastHeartbeatAt: nowIso,
+    updatedAt: nowIso,
+  });
 
   log.debug({ taskId }, "Implementation log saved to task");
 }
