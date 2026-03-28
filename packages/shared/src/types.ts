@@ -145,7 +145,8 @@ export type WsEventType =
   | "task:created"
   | "task:updated"
   | "task:deleted"
-  | "task:moved";
+  | "task:moved"
+  | "agent:wake";
 
 export interface WsEvent {
   type: WsEventType;

@@ -122,6 +122,40 @@ function ensureTables(sqlite: Database.Database): void {
   );
   ensureColumn(sqlite, "task_comments", "author", "author TEXT NOT NULL DEFAULT 'human'");
   ensureColumn(sqlite, "task_comments", "attachments", "attachments TEXT NOT NULL DEFAULT '[]'");
+
+  ensureIndexes(sqlite);
+}
+
+/** Idempotent index bootstrap for high-frequency query patterns. */
+function ensureIndexes(sqlite: Database.Database): void {
+  const indexDefs = [
+    // Coordinator picks tasks by status
+    "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)",
+    // Coordinator retry scan: blocked_external tasks with due retry_after
+    "CREATE INDEX IF NOT EXISTS idx_tasks_retry_after ON tasks(retry_after)",
+    // Task list queries filtered by project
+    "CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id)",
+    // Composite: coordinator filters status + retry_after together
+    "CREATE INDEX IF NOT EXISTS idx_tasks_status_retry ON tasks(status, retry_after)",
+    // Composite: task list ordering within a project by status and position
+    "CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status, position)",
+    // Task comments lookup by task
+    "CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id)",
+  ];
+
+  for (const ddl of indexDefs) {
+    try {
+      sqlite.exec(ddl);
+    } catch (err) {
+      log.error({ err, ddl }, "Index bootstrap failed");
+    }
+  }
+
+  log.info({ indexCount: indexDefs.length }, "Index bootstrap complete");
+  log.debug(
+    { indexes: indexDefs.map((d) => d.match(/idx_\w+/)?.[0] ?? d) },
+    "Indexes created/verified",
+  );
 }
 
 function ensureColumn(
@@ -143,6 +177,7 @@ export function createTestDb(): BetterSQLite3Database<typeof schema> {
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   ensureTables(sqlite);
+  // ensureTables already calls ensureIndexes at the end
 
   const db = drizzle(sqlite, { schema });
   log.debug("Created in-memory test database");

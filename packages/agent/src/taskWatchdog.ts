@@ -3,7 +3,7 @@
  * Extracted from coordinator.ts for single responsibility.
  */
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { getDb, tasks, logger, getEnv, type TaskStatus } from "@aif/shared";
 import { logActivity } from "./hooks.js";
 import { notifyTaskBroadcast } from "./notifier.js";
@@ -34,10 +34,23 @@ export function parseUpdatedAtMs(value: string): number | null {
 
 export function releaseDueBlockedTasks(db: ReturnType<typeof getDb>): void {
   const nowIso = new Date().toISOString();
-  const blockedTasks = db.select().from(tasks).where(eq(tasks.status, "blocked_external")).all();
+  // Use idx_tasks_status_retry: filter status + due retry_after in SQL
+  const blockedTasks = db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.status, "blocked_external"),
+        isNotNull(tasks.retryAfter),
+        lte(tasks.retryAfter, nowIso),
+        isNotNull(tasks.blockedFromStatus),
+      ),
+    )
+    .all();
+
+  log.debug({ candidateCount: blockedTasks.length }, "Due blocked tasks found for release");
 
   for (const task of blockedTasks) {
-    if (!task.retryAfter || task.retryAfter > nowIso) continue;
     if (!task.blockedFromStatus) continue;
 
     db.update(tasks)

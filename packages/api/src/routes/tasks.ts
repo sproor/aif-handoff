@@ -70,6 +70,8 @@ tasksRouter.post("/", zValidator("json", createTaskSchema), async (c) => {
   log.debug({ taskId: created.id, title: body.title }, "Task created");
 
   broadcast({ type: "task:created", payload: toTaskResponse(created) });
+  // Wake coordinator when a new task is created (may need immediate processing)
+  broadcast({ type: "agent:wake", payload: { id: created.id } });
   return c.json(toTaskResponse(created), 201);
 });
 
@@ -262,6 +264,10 @@ tasksRouter.post("/:id/events", zValidator("json", taskEventSchema), async (c) =
       type: handled.broadcastType,
       payload: toTaskResponse(handled.task),
     });
+    // Wake coordinator when task transitions may require agent processing
+    if (handled.broadcastType === "task:moved") {
+      broadcast({ type: "agent:wake", payload: { id: handled.task.id } });
+    }
     return c.json(toTaskResponse(handled.task));
   } catch (error) {
     log.error({ taskId: id, event, error }, "Task event handling failed");

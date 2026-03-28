@@ -4,5 +4,5 @@ coverage/
 data/
 .turbo/
 *.sqlite
-.ai-factory/skill-context/
+.ai-factory/
 docs-html/

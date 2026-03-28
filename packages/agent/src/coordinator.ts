@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import {
   getDb,
   tasks,
@@ -140,12 +140,24 @@ export async function pollAndProcess(): Promise<void> {
           ? and(eq(tasks.status, "plan_ready"), eq(tasks.autoMode, true))
           : inArray(tasks.status, stage.from);
 
-    const task = db.select().from(tasks).where(stageFilter).limit(1).get();
+    // Deterministic pickup: lowest position first (uses idx_tasks_status index)
+    const task = db
+      .select()
+      .from(tasks)
+      .where(stageFilter)
+      .orderBy(asc(tasks.position), asc(tasks.createdAt))
+      .limit(1)
+      .get();
 
     if (!task) {
       log.debug({ stage: stage.label }, "No tasks to process");
       continue;
     }
+
+    log.debug(
+      { stage: stage.label, taskId: task.id, candidateStatus: task.status },
+      "Task candidate selected",
+    );
 
     // Get the project's rootPath
     const project = db.select().from(projects).where(eq(projects.id, task.projectId)).get();
