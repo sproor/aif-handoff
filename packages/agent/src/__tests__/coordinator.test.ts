@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { tasks, projects, taskComments } from "@aif/shared";
+import { tasks, projects } from "@aif/shared";
 import { createTestDb } from "@aif/shared/server";
 import { eq } from "drizzle-orm";
 
@@ -30,6 +30,13 @@ vi.mock("../subagents/reviewer.js", () => ({
 vi.mock("../reviewGate.js", () => ({
   evaluateReviewCommentsForAutoMode: vi.fn().mockResolvedValue({ status: "success" }),
 }));
+vi.mock("../autoReviewHandler.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../autoReviewHandler.js")>();
+  return {
+    ...actual,
+    handleAutoReviewGate: vi.fn().mockResolvedValue("accepted"),
+  };
+});
 
 const { pollAndProcess, getCoordinatorRuntimeCounters, resetCoordinatorRuntimeCountersForTests } =
   await import("../coordinator.js");
@@ -37,7 +44,7 @@ const { runPlanner } = await import("../subagents/planner.js");
 const { runPlanChecker } = await import("../subagents/planChecker.js");
 const { runImplementer } = await import("../subagents/implementer.js");
 const { runReviewer } = await import("../subagents/reviewer.js");
-const { evaluateReviewCommentsForAutoMode } = await import("../reviewGate.js");
+const { handleAutoReviewGate } = await import("../autoReviewHandler.js");
 
 describe("coordinator", () => {
   beforeEach(() => {
@@ -198,27 +205,14 @@ describe("coordinator", () => {
       })
       .run();
 
-    vi.mocked(evaluateReviewCommentsForAutoMode).mockResolvedValueOnce({
-      status: "request_changes",
-      fixes: "- fix issue A\n- fix issue B",
-    });
+    vi.mocked(handleAutoReviewGate).mockResolvedValueOnce("rework_requested");
 
     await pollAndProcess();
 
     const task = db.select().from(tasks).where(eq(tasks.id, "task-review-fixes")).get();
-    const comments = db
-      .select()
-      .from(taskComments)
-      .where(eq(taskComments.taskId, "task-review-fixes"))
-      .all();
 
     expect(task!.status).toBe("implementing");
     expect(task!.reworkRequested).toBe(true);
-    expect(comments).toHaveLength(1);
-    expect(comments[0]!.author).toBe("agent");
-    expect(comments[0]!.message).toContain("## Auto Review Gate Summary");
-    expect(comments[0]!.message).toContain("Outcome: request_changes");
-    expect(comments[0]!.message).toContain("fix issue A");
   });
 
   it("should skip auto review gate when autoMode=false", async () => {
@@ -234,14 +228,16 @@ describe("coordinator", () => {
       })
       .run();
 
+    // handleAutoReviewGate returns null for non-autoMode tasks
+    vi.mocked(handleAutoReviewGate).mockResolvedValueOnce(null);
+
     await pollAndProcess();
 
     const task = db.select().from(tasks).where(eq(tasks.id, "task-review-manual")).get();
     expect(task!.status).toBe("done");
-    expect(evaluateReviewCommentsForAutoMode).not.toHaveBeenCalled();
   });
 
-  it("should log auto review gate checks before moving review task to done", async () => {
+  it("should proceed to done when auto review gate accepts", async () => {
     const db = testDb.current;
     db.insert(tasks)
       .values({
@@ -254,25 +250,15 @@ describe("coordinator", () => {
       })
       .run();
 
+    // handleAutoReviewGate returns "accepted" (default mock)
     await pollAndProcess();
 
     const task = db.select().from(tasks).where(eq(tasks.id, "task-review-auto-log")).get();
-    const comments = db
-      .select()
-      .from(taskComments)
-      .where(eq(taskComments.taskId, "task-review-auto-log"))
-      .all();
-
     expect(task!.status).toBe("done");
-    expect(comments).toHaveLength(1);
-    expect(comments[0]!.message).toContain("## Auto Review Gate Summary");
-    expect(comments[0]!.message).toContain("Outcome: success");
-    expect(task!.agentActivityLog).toContain(
-      "coordinator auto review gate started: validating review comments before done transition",
-    );
-    expect(task!.agentActivityLog).toContain(
-      "coordinator auto review gate passed: review accepted, proceeding to done",
-    );
+    expect(handleAutoReviewGate).toHaveBeenCalledWith({
+      taskId: "task-review-auto-log",
+      projectRoot: "/tmp/test",
+    });
   });
 
   it("should auto-recover stale implementing task to blocked_external", async () => {

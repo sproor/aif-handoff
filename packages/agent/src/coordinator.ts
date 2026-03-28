@@ -1,8 +1,6 @@
 import {
-  createTaskComment,
   findCoordinatorTaskCandidate,
   findProjectById,
-  findTaskById,
   updateTaskStatus as updateTaskStatusRow,
 } from "@aif/data";
 import {
@@ -16,15 +14,11 @@ import { runPlanner } from "./subagents/planner.js";
 import { runPlanChecker } from "./subagents/planChecker.js";
 import { runImplementer } from "./subagents/implementer.js";
 import { runReviewer } from "./subagents/reviewer.js";
-import { logActivity, flushActivityQueue } from "./hooks.js";
+import { flushActivityQueue } from "./hooks.js";
 import { notifyTaskBroadcast } from "./notifier.js";
-import { evaluateReviewCommentsForAutoMode } from "./reviewGate.js";
-import { isExternalFailure, isFastRetryableFailure, truncateReason } from "./errorClassifier.js";
-import {
-  releaseDueBlockedTasks,
-  recoverStaleInProgressTasks,
-  getRandomBackoffMinutes,
-} from "./taskWatchdog.js";
+import { handleAutoReviewGate } from "./autoReviewHandler.js";
+import { classifyStageError } from "./stageErrorHandler.js";
+import { releaseDueBlockedTasks, recoverStaleInProgressTasks } from "./taskWatchdog.js";
 
 const log = logger("coordinator");
 const env = getEnv();
@@ -66,7 +60,7 @@ const PIPELINE: StatusTransition[] = [
   },
   {
     from: ["review"],
-    inProgress: "review", // stays in review during processing
+    inProgress: "review",
     onSuccess: "done",
     runner: runReviewer,
     label: "reviewer",
@@ -131,7 +125,6 @@ export async function pollAndProcess(): Promise<void> {
       "Task candidate selected",
     );
 
-    // Get the project's rootPath
     const project = findProjectById(task.projectId);
 
     if (!project) {
@@ -142,7 +135,6 @@ export async function pollAndProcess(): Promise<void> {
       continue;
     }
 
-    // Ensure project directory is initialized (.claude/agents, .claude/skills, git)
     initProjectDirectory(project.rootPath);
 
     log.info(
@@ -151,7 +143,6 @@ export async function pollAndProcess(): Promise<void> {
     );
     const sourceStatus = task.status;
 
-    // Set intermediate status
     updateTaskStatus(task.id, stage.inProgress);
 
     log.debug(
@@ -162,52 +153,20 @@ export async function pollAndProcess(): Promise<void> {
     try {
       await runStageWithTimeout(stage.runner, task.id, project.rootPath, stage.label);
 
-      // Flush buffered activity logs at stage boundary (batch mode)
       flushActivityQueue(task.id);
 
-      const refreshedTask = findTaskById(task.id);
-
-      if (stage.label === "reviewer" && refreshedTask?.autoMode) {
-        logActivity(
-          task.id,
-          "Agent",
-          "coordinator auto review gate started: validating review comments before done transition",
-        );
-        const reviewGate = await evaluateReviewCommentsForAutoMode({
+      // Auto review gate: after reviewer in autoMode, decide accept vs rework
+      if (stage.label === "reviewer") {
+        const outcome = await handleAutoReviewGate({
           taskId: task.id,
           projectRoot: project.rootPath,
-          reviewComments: refreshedTask.reviewComments,
         });
 
-        if (reviewGate.status === "request_changes") {
-          const requestedFixesCount = reviewGate.fixes
-            .split("\n")
-            .map((line) => line.trim())
-            .filter((line) => line.startsWith("- ")).length;
-          const reviewSummary = [
-            "## Auto Review Gate Summary",
-            "- Outcome: request_changes",
-            `- Required fixes: ${requestedFixesCount}`,
-            "",
-            "## Required Fixes",
-            reviewGate.fixes,
-          ].join("\n");
-          createTaskComment({
-            taskId: task.id,
-            author: "agent",
-            message: reviewSummary,
-            attachments: [],
-          });
-
+        if (outcome === "rework_requested") {
           updateTaskStatus(task.id, "implementing", {
             ...CLEAN_STATE_RESET,
             reworkRequested: true,
           });
-          logActivity(
-            task.id,
-            "Agent",
-            `coordinator auto review gate requested changes (${requestedFixesCount} items), returning to implementing`,
-          );
 
           log.info(
             { taskId: task.id, from: stage.inProgress, to: "implementing" },
@@ -215,28 +174,8 @@ export async function pollAndProcess(): Promise<void> {
           );
           continue;
         }
-
-        createTaskComment({
-          taskId: task.id,
-          author: "agent",
-          message: [
-            "## Auto Review Gate Summary",
-            "- Outcome: success",
-            "- Required fixes: 0",
-            "",
-            "Review comments passed auto-gate; transitioning task to Done.",
-          ].join("\n"),
-          attachments: [],
-        });
-
-        logActivity(
-          task.id,
-          "Agent",
-          "coordinator auto review gate passed: review accepted, proceeding to done",
-        );
       }
 
-      // Success — move to next status
       updateTaskStatus(task.id, stage.onSuccess, CLEAN_STATE_RESET);
 
       log.info(
@@ -244,58 +183,47 @@ export async function pollAndProcess(): Promise<void> {
         "Status transition (success)",
       );
     } catch (err) {
-      if (isFastRetryableFailure(err)) {
-        const reason = err instanceof Error ? err.message : String(err);
-        runtimeCounters.fastRetryStreamInterruptions += 1;
+      const recovery = classifyStageError({
+        taskId: task.id,
+        stageLabel: stage.label,
+        sourceStatus,
+        retryCount: task.retryCount ?? 0,
+        err,
+      });
 
-        updateTaskStatus(task.id, sourceStatus, {
-          blockedReason: null,
-          blockedFromStatus: null,
-          retryAfter: null,
-        });
+      switch (recovery.kind) {
+        case "fast_retry":
+          runtimeCounters.fastRetryStreamInterruptions += 1;
+          log.warn(
+            {
+              taskId: task.id,
+              stage: stage.label,
+              metric: "coordinator.fast_retry_stream_interruptions",
+              fastRetryStreamInterruptions: runtimeCounters.fastRetryStreamInterruptions,
+            },
+            "Fast retry scheduled after transient stream interruption",
+          );
+          updateTaskStatus(task.id, sourceStatus, {
+            blockedReason: null,
+            blockedFromStatus: null,
+            retryAfter: null,
+          });
+          break;
 
-        log.warn(
-          {
-            taskId: task.id,
-            stage: stage.label,
-            reason,
-            metric: "coordinator.fast_retry_stream_interruptions",
-            fastRetryStreamInterruptions: runtimeCounters.fastRetryStreamInterruptions,
-          },
-          "Subagent hit transient stream interruption, scheduling fast retry",
-        );
-      } else if (isExternalFailure(err)) {
-        const backoffMinutes = getRandomBackoffMinutes();
-        const retryAfter = new Date(Date.now() + backoffMinutes * 60_000).toISOString();
-        const reason = err instanceof Error ? err.message : String(err);
+        case "blocked_external":
+          updateTaskStatus(task.id, "blocked_external", {
+            blockedReason: err instanceof Error ? err.message : String(err),
+            blockedFromStatus: sourceStatus,
+            retryAfter: recovery.retryAfter,
+            retryCount: recovery.retryCount,
+          });
+          break;
 
-        updateTaskStatus(task.id, "blocked_external", {
-          blockedReason: reason,
-          blockedFromStatus: sourceStatus,
-          retryAfter,
-          retryCount: (task.retryCount ?? 0) + 1,
-        });
-        logActivity(
-          task.id,
-          "Agent",
-          `coordinator moved to blocked_external from ${sourceStatus} at ${stage.label}; retryAfter=${retryAfter}; reason=${truncateReason(reason)}`,
-        );
-
-        log.error(
-          { taskId: task.id, stage: stage.label, err, retryAfter, backoffMinutes },
-          "Subagent failed with external error, task blocked with backoff",
-        );
-      } else {
-        // Failure — revert to previous status
-        updateTaskStatus(task.id, sourceStatus);
-
-        log.error(
-          { taskId: task.id, stage: stage.label, err },
-          "Subagent failed, reverting status",
-        );
+        case "revert":
+          updateTaskStatus(task.id, sourceStatus);
+          break;
       }
 
-      // Flush buffered activity logs on error path too
       flushActivityQueue(task.id);
 
       // Stop current poll cycle after a failed stage to avoid immediately
