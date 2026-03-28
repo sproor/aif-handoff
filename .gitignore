@@ -61,4 +61,5 @@ docs-html/
 .data
 .projects
 
-storage/
+# Attachment files (stored inside project .ai-factory/files/)
+.ai-factory/files/

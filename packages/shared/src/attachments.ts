@@ -59,26 +59,11 @@ const SHORT_PLAN_MIN_LENGTH = 10;
 const LONG_PLAN_MIN_LENGTH = 80;
 
 /**
- * Format attachments as path-only references for agent prompts (new flow).
- * Includes validated paths and optional tiny text excerpts.
- * This is the single source of truth for path-based prompt formatting — used by
- * planner, implementer, reviewer, and fast-fix flows.
- */
-export function formatAttachmentPathsForPrompt(attachments: ParsedAttachment[]): string {
-  const fileBackedAttachments = attachments.filter(isFileBackedAttachment);
-  if (fileBackedAttachments.length === 0) return "No task attachments were provided.";
-
-  return fileBackedAttachments
-    .map(
-      (file, index) =>
-        `${index + 1}. ${file.name} (${file.mimeType}, ${file.size} bytes)\n   path: ${file.path}`,
-    )
-    .join("\n");
-}
-
-/**
- * Format attachments for agent prompts (legacy flow — includes inline content).
- * @deprecated Use formatAttachmentPathsForPrompt for new path-based flow.
+ * Format attachments for agent prompts.
+ * File-backed attachments show their path relative to project root —
+ * agents run with cwd=projectRoot so they can read files directly.
+ *
+ * @param raw - JSON-serialized attachment array from DB
  */
 export function formatAttachmentsForPrompt(raw: string | null): string {
   const attachments = parseAttachments(raw);
@@ -86,14 +71,19 @@ export function formatAttachmentsForPrompt(raw: string | null): string {
 
   return attachments
     .map((file, index) => {
-      const contentBlock = file.content
-        ? `\n    content:\n${file.content
-            .slice(0, CONTENT_PREVIEW_LIMIT)
-            .split("\n")
-            .map((line) => `      ${line}`)
-            .join("\n")}`
-        : "\n    content: [not provided]";
-      return `${index + 1}. ${file.name} (${file.mimeType}, ${file.size} bytes)${contentBlock}`;
+      let detail: string;
+      if (file.content) {
+        detail = `\n    content:\n${file.content
+          .slice(0, CONTENT_PREVIEW_LIMIT)
+          .split("\n")
+          .map((line) => `      ${line}`)
+          .join("\n")}`;
+      } else if (file.path) {
+        detail = `\n    file: ${file.path}`;
+      } else {
+        detail = "\n    content: [not provided]";
+      }
+      return `${index + 1}. ${file.name} (${file.mimeType}, ${file.size} bytes)${detail}`;
     })
     .join("\n");
 }

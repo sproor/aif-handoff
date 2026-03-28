@@ -59,7 +59,6 @@ export {
   parseAttachments,
   isFileBackedAttachment,
   formatAttachmentsForPrompt,
-  formatAttachmentPathsForPrompt,
   extractHeadings,
   looksLikeFullPlanUpdate,
   type ParsedAttachment,

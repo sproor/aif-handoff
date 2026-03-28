@@ -1,3 +1,4 @@
+import { Download } from "lucide-react";
 import { useTaskComments } from "@/hooks/useTasks";
 
 interface TaskCommentsProps {
@@ -37,10 +38,27 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
               </p>
               <ul className="space-y-1 text-xs text-foreground/80">
                 {comment.attachments.map((file, index) => (
-                  <li key={`${comment.id}-${file.name}-${index}`}>
-                    {file.name} ({file.mimeType || "unknown"}, {file.size} bytes)
-                    {file.content == null && (
-                      <span className="ml-1 text-[10px] text-muted-foreground">(metadata only)</span>
+                  <li
+                    key={`${comment.id}-${file.name}-${index}`}
+                    className="flex items-center gap-2"
+                  >
+                    <span className="truncate">
+                      {file.name} ({file.mimeType || "unknown"}, {file.size} bytes)
+                      {file.content == null && !file.path && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">
+                          (metadata only)
+                        </span>
+                      )}
+                    </span>
+                    {file.path && (
+                      <a
+                        href={`/tasks/${taskId}/comments/${comment.id}/attachments/${encodeURIComponent(file.name)}`}
+                        download={file.name}
+                        className="inline-flex shrink-0 items-center text-muted-foreground transition-colors hover:text-foreground"
+                        title="Download"
+                      >
+                        <Download className="h-3 w-3" />
+                      </a>
                     )}
                   </li>
                 ))}

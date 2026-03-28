@@ -59,7 +59,8 @@ export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteTask(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: ["task", id] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
@@ -68,8 +69,7 @@ export function useDeleteTask() {
 export function useTaskEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, event }: { id: string; event: TaskEvent }) =>
-      api.taskEvent(id, event),
+    mutationFn: ({ id, event }: { id: string; event: TaskEvent }) => api.taskEvent(id, event),
     // Optimistic update
     onMutate: async ({ id }) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });

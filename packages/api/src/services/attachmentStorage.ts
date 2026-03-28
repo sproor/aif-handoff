@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync, unlinkSync, readdirSync, rmSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { join, normalize, basename, extname } from "node:path";
+import { join, normalize, basename, extname, resolve } from "node:path";
 import { logger } from "@aif/shared";
 
 const log = logger("attachmentStorage");
 
-/** Root directory for all attachment files (relative to project root) */
-const STORAGE_ROOT = join(process.cwd(), "storage");
+/** Base directory inside project root for attachment files */
+const FILES_DIR = ".ai-factory/files";
 
 /** Max filename length after sanitization */
 const MAX_FILENAME_LENGTH = 200;
@@ -39,15 +39,15 @@ export function sanitizeFilename(raw: string): string {
 /**
  * Build the deterministic directory path for a task's attachments.
  */
-function taskAttachmentDir(projectId: string, taskId: string): string {
-  return join(STORAGE_ROOT, "projects", projectId, "tasks", taskId);
+function taskAttachmentDir(projectRoot: string, taskId: string): string {
+  return join(projectRoot, FILES_DIR, "tasks", taskId);
 }
 
 /**
  * Build the deterministic directory path for a comment's attachments.
  */
-function commentAttachmentDir(projectId: string, taskId: string, commentId: string): string {
-  return join(STORAGE_ROOT, "projects", projectId, "tasks", taskId, "comments", commentId);
+function commentAttachmentDir(projectRoot: string, taskId: string, commentId: string): string {
+  return join(projectRoot, FILES_DIR, "tasks", taskId, "comments", commentId);
 }
 
 /**
@@ -67,21 +67,21 @@ function assertWithinBase(resolvedPath: string, baseDir: string): void {
 }
 
 /**
- * Resolve a relative attachment path to an absolute filesystem path.
- * Validates that the resolved path stays within STORAGE_ROOT.
+ * Resolve a DB-stored relative attachment path to an absolute filesystem path.
  *
- * @param relativePath - e.g. "projects/<pid>/tasks/<tid>/file.png"
+ * @param projectRoot - Absolute path to the project root directory
+ * @param relativePath - e.g. ".ai-factory/files/tasks/<tid>/file.png"
  * @returns Absolute path on disk
  */
-export function resolveAttachmentPath(relativePath: string): string {
-  const resolved = join(STORAGE_ROOT, relativePath);
-  assertWithinBase(resolved, STORAGE_ROOT);
+export function resolveAttachmentPath(projectRoot: string, relativePath: string): string {
+  const resolved = resolve(projectRoot, relativePath);
+  assertWithinBase(resolved, join(projectRoot, FILES_DIR));
   log.debug({ relativePath, resolved }, "Resolved attachment path");
   return resolved;
 }
 
 export interface SaveAttachmentInput {
-  projectId: string;
+  projectRoot: string;
   taskId: string;
   commentId?: string;
   filename: string;
@@ -89,7 +89,7 @@ export interface SaveAttachmentInput {
 }
 
 export interface SaveAttachmentResult {
-  /** Relative path from storage root (stored in DB) */
+  /** Relative path from project root (stored in DB) */
   relativePath: string;
   /** Sanitized filename */
   sanitizedName: string;
@@ -98,21 +98,21 @@ export interface SaveAttachmentResult {
 }
 
 /**
- * Save an attachment file to disk.
+ * Save an attachment file to disk inside the project's .ai-factory/files/ directory.
  * Creates directories as needed. Returns the relative path for DB storage.
  */
 export async function saveAttachment(input: SaveAttachmentInput): Promise<SaveAttachmentResult> {
   const sanitizedName = sanitizeFilename(input.filename);
   const dir = input.commentId
-    ? commentAttachmentDir(input.projectId, input.taskId, input.commentId)
-    : taskAttachmentDir(input.projectId, input.taskId);
+    ? commentAttachmentDir(input.projectRoot, input.taskId, input.commentId)
+    : taskAttachmentDir(input.projectRoot, input.taskId);
 
   const absolutePath = join(dir, sanitizedName);
-  assertWithinBase(absolutePath, STORAGE_ROOT);
+  assertWithinBase(absolutePath, join(input.projectRoot, FILES_DIR));
 
   log.debug(
     {
-      projectId: input.projectId,
+      projectRoot: input.projectRoot,
       taskId: input.taskId,
       commentId: input.commentId,
       filename: sanitizedName,
@@ -124,7 +124,8 @@ export async function saveAttachment(input: SaveAttachmentInput): Promise<SaveAt
   mkdirSync(dir, { recursive: true });
   await writeFile(absolutePath, input.content);
 
-  const relativePath = absolutePath.slice(STORAGE_ROOT.length + 1);
+  // Store path relative to project root so agents can read it directly
+  const relativePath = absolutePath.slice(input.projectRoot.length + 1);
 
   log.info(
     {
@@ -134,7 +135,7 @@ export async function saveAttachment(input: SaveAttachmentInput): Promise<SaveAt
       size: input.content.length,
       relativePath,
     },
-    "Attachment saved to storage",
+    "Attachment saved to project files",
   );
 
   return {
@@ -147,26 +148,28 @@ export async function saveAttachment(input: SaveAttachmentInput): Promise<SaveAt
 /**
  * Read an attachment file from disk.
  *
+ * @param projectRoot - Absolute path to the project root directory
  * @param relativePath - Relative path as stored in DB
  * @returns File buffer
  */
-export async function readAttachment(relativePath: string): Promise<Buffer> {
-  const absolutePath = resolveAttachmentPath(relativePath);
-  log.debug({ relativePath }, "Reading attachment from storage");
+export async function readAttachment(projectRoot: string, relativePath: string): Promise<Buffer> {
+  const absolutePath = resolveAttachmentPath(projectRoot, relativePath);
+  log.debug({ relativePath }, "Reading attachment from project files");
   return readFile(absolutePath);
 }
 
 /**
  * Delete a single attachment file from disk.
  *
+ * @param projectRoot - Absolute path to the project root directory
  * @param relativePath - Relative path as stored in DB
  * @returns true if deleted, false if file did not exist
  */
-export function deleteAttachment(relativePath: string): boolean {
-  const absolutePath = resolveAttachmentPath(relativePath);
+export function deleteAttachment(projectRoot: string, relativePath: string): boolean {
+  const absolutePath = resolveAttachmentPath(projectRoot, relativePath);
   try {
     unlinkSync(absolutePath);
-    log.info({ relativePath }, "Attachment deleted from storage");
+    log.info({ relativePath }, "Attachment deleted from project files");
     return true;
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
@@ -180,14 +183,14 @@ export function deleteAttachment(relativePath: string): boolean {
 
 /**
  * Clean up all attachment files for a task (including comment attachments).
- * Removes the entire task directory under storage/.
+ * Removes the entire task directory under .ai-factory/files/.
  *
  * @returns Number of files removed, or -1 if directory didn't exist
  */
-export function cleanupTaskAttachmentFiles(projectId: string, taskId: string): number {
-  const dir = taskAttachmentDir(projectId, taskId);
+export function cleanupTaskAttachmentFiles(projectRoot: string, taskId: string): number {
+  const dir = taskAttachmentDir(projectRoot, taskId);
   if (!existsSync(dir)) {
-    log.warn({ projectId, taskId, dir }, "Task attachment directory not found during cleanup");
+    log.warn({ taskId, dir }, "Task attachment directory not found during cleanup");
     return -1;
   }
 
@@ -195,9 +198,9 @@ export function cleanupTaskAttachmentFiles(projectId: string, taskId: string): n
   try {
     count = countFiles(dir);
     rmSync(dir, { recursive: true, force: true });
-    log.info({ projectId, taskId, filesRemoved: count }, "Task attachment directory cleaned up");
+    log.info({ taskId, filesRemoved: count }, "Task attachment directory cleaned up");
   } catch (err) {
-    log.error({ projectId, taskId, err }, "Failed to clean up task attachment directory");
+    log.error({ taskId, err }, "Failed to clean up task attachment directory");
     throw err;
   }
   return count;
@@ -221,7 +224,7 @@ function countFiles(dir: string): number {
 /**
  * Check if an attachment file exists on disk.
  */
-export function attachmentFileExists(relativePath: string): boolean {
-  const absolutePath = resolveAttachmentPath(relativePath);
+export function attachmentFileExists(projectRoot: string, relativePath: string): boolean {
+  const absolutePath = resolveAttachmentPath(projectRoot, relativePath);
   return existsSync(absolutePath);
 }

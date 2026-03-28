@@ -25,14 +25,19 @@ function formatLatestCommentForPrompt(comment: FastFixComment): string {
   const attachmentLines = attachments.length
     ? attachments
         .map((file, index) => {
-          const contentBlock = file.content
-            ? `\n     content:\n${file.content
-                .slice(0, 4000)
-                .split("\n")
-                .map((line) => `       ${line}`)
-                .join("\n")}`
-            : "\n     content: [not provided]";
-          return `${index + 1}. ${file.name} (${file.mimeType}, ${file.size} bytes)${contentBlock}`;
+          let detail: string;
+          if (file.content) {
+            detail = `\n     content:\n${file.content
+              .slice(0, 4000)
+              .split("\n")
+              .map((line) => `       ${line}`)
+              .join("\n")}`;
+          } else if (file.path) {
+            detail = `\n     file: ${file.path}`;
+          } else {
+            detail = "\n     content: [not provided]";
+          }
+          return `${index + 1}. ${file.name} (${file.mimeType}, ${file.size} bytes)${detail}`;
         })
         .join("\n")
     : "none";

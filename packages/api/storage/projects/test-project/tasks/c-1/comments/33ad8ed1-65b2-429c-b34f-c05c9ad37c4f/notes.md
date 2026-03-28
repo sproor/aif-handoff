@@ -1,0 +1,1 @@
+Use OpenAPI-first approach

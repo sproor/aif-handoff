@@ -236,6 +236,34 @@ GET /tasks/:id
 
 **Response:** `200 OK` — full task object.
 
+### Download Task Attachment
+
+```
+GET /tasks/:id/attachments/:filename
+```
+
+Downloads a file-backed attachment from the task. The `:filename` must match the attachment `name` in the task's attachments array.
+
+**Response:** `200 OK` — binary file with `Content-Disposition: attachment`.
+
+**Errors:**
+
+- `404` — task not found, attachment not found, or file missing from disk.
+
+### Download Comment Attachment
+
+```
+GET /tasks/:id/comments/:commentId/attachments/:filename
+```
+
+Downloads a file-backed attachment from a task comment. The `:filename` must match the attachment `name` in the comment's attachments array.
+
+**Response:** `200 OK` — binary file with `Content-Disposition: attachment`.
+
+**Errors:**
+
+- `404` — task, comment, or attachment not found, or file missing from disk.
+
 ### Update Task
 
 ```

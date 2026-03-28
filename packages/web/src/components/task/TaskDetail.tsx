@@ -56,6 +56,7 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
 
                   <Section title="Attachments">
                     <TaskAttachments
+                      taskId={task.id}
                       attachments={task.attachments ?? []}
                       onFilesSelected={(files) => void actions.handleTaskAttachmentsSelected(files)}
                       onRemove={actions.handleRemoveTaskAttachment}

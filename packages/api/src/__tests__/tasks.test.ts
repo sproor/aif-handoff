@@ -27,6 +27,16 @@ vi.mock("../ws.js", () => ({
   getInjectWebSocket: vi.fn(),
 }));
 
+// Mock attachment storage for download tests
+const mockReadAttachment = vi.fn();
+vi.mock("../services/attachmentStorage.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/attachmentStorage.js")>();
+  return {
+    ...actual,
+    readAttachment: (...args: unknown[]) => mockReadAttachment(...args),
+  };
+});
+
 const mockQuery = vi.fn();
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: (args: unknown) => mockQuery(args),
@@ -39,6 +49,10 @@ function createApp() {
   const app = new Hono();
   app.route("/tasks", tasksRouter);
   return app;
+}
+
+function insertTestProject(db: ReturnType<typeof createTestDb>, rootPath = "/tmp/test-project") {
+  db.insert(projects).values({ id: "test-project", name: "Test Project", rootPath }).run();
 }
 
 describe("tasks API", () => {
@@ -756,6 +770,7 @@ describe("tasks API", () => {
 
     it("should create and list task comments with attachments", async () => {
       const db = testDb.current;
+      insertTestProject(db);
       db.insert(tasks)
         .values({ id: "c-1", projectId: "test-project", title: "Comment target" })
         .run();
@@ -808,6 +823,138 @@ describe("tasks API", () => {
 
       const comments = db.select().from(taskComments).where(eq(taskComments.taskId, "c-2")).all();
       expect(comments).toHaveLength(0);
+    });
+  });
+
+  describe("GET /tasks/:id/attachments/:filename", () => {
+    it("should return 404 for non-existent task", async () => {
+      const res = await app.request("/tasks/no-task/attachments/file.txt");
+      expect(res.status).toBe(404);
+    });
+
+    it("should return 404 when attachment not found on task", async () => {
+      const db = testDb.current;
+      insertTestProject(db);
+      db.insert(tasks)
+        .values({
+          id: "dl-1",
+          projectId: "test-project",
+          title: "Download test",
+          attachments: JSON.stringify([
+            {
+              name: "readme.md",
+              mimeType: "text/markdown",
+              size: 10,
+              content: null,
+              path: ".ai-factory/files/tasks/dl-1/readme.md",
+            },
+          ]),
+        })
+        .run();
+
+      const res = await app.request("/tasks/dl-1/attachments/missing.txt");
+      expect(res.status).toBe(404);
+    });
+
+    it("should download file-backed attachment", async () => {
+      const db = testDb.current;
+      insertTestProject(db);
+      const fileContent = Buffer.from("# Hello World");
+      db.insert(tasks)
+        .values({
+          id: "dl-2",
+          projectId: "test-project",
+          title: "Download test",
+          attachments: JSON.stringify([
+            {
+              name: "readme.md",
+              mimeType: "text/markdown",
+              size: fileContent.length,
+              content: null,
+              path: ".ai-factory/files/tasks/dl-2/readme.md",
+            },
+          ]),
+        })
+        .run();
+
+      mockReadAttachment.mockResolvedValue(fileContent);
+
+      const res = await app.request("/tasks/dl-2/attachments/readme.md");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("text/markdown");
+      expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="readme.md"');
+      const body = await res.arrayBuffer();
+      expect(Buffer.from(body).toString()).toBe("# Hello World");
+    });
+
+    it("should return 404 when file missing from disk", async () => {
+      const db = testDb.current;
+      insertTestProject(db);
+      db.insert(tasks)
+        .values({
+          id: "dl-3",
+          projectId: "test-project",
+          title: "Download test",
+          attachments: JSON.stringify([
+            {
+              name: "gone.txt",
+              mimeType: "text/plain",
+              size: 5,
+              content: null,
+              path: ".ai-factory/files/tasks/dl-3/gone.txt",
+            },
+          ]),
+        })
+        .run();
+
+      mockReadAttachment.mockRejectedValue(new Error("ENOENT"));
+
+      const res = await app.request("/tasks/dl-3/attachments/gone.txt");
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("GET /tasks/:id/comments/:commentId/attachments/:filename", () => {
+    it("should return 404 for non-existent comment", async () => {
+      const db = testDb.current;
+      insertTestProject(db);
+      db.insert(tasks).values({ id: "cdl-1", projectId: "test-project", title: "T" }).run();
+
+      const res = await app.request("/tasks/cdl-1/comments/no-comment/attachments/file.txt");
+      expect(res.status).toBe(404);
+    });
+
+    it("should download comment attachment", async () => {
+      const db = testDb.current;
+      insertTestProject(db);
+      db.insert(tasks).values({ id: "cdl-2", projectId: "test-project", title: "T" }).run();
+      const fileContent = Buffer.from("comment file data");
+      db.insert(taskComments)
+        .values({
+          id: "cm-1",
+          taskId: "cdl-2",
+          author: "human",
+          message: "see attached",
+          attachments: JSON.stringify([
+            {
+              name: "notes.md",
+              mimeType: "text/markdown",
+              size: fileContent.length,
+              content: null,
+              path: ".ai-factory/files/tasks/cdl-2/comments/cm-1/notes.md",
+            },
+          ]),
+        })
+        .run();
+
+      mockReadAttachment.mockResolvedValue(fileContent);
+
+      const res = await app.request("/tasks/cdl-2/comments/cm-1/attachments/notes.md");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("text/markdown");
+      expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="notes.md"');
+      const body = await res.arrayBuffer();
+      expect(Buffer.from(body).toString()).toBe("comment file data");
     });
   });
 });

@@ -77,6 +77,21 @@ describe("formatAttachmentsForPrompt", () => {
     expect(result).toContain("[not provided]");
   });
 
+  it("formats file-backed attachments with path", () => {
+    const input = JSON.stringify([
+      {
+        name: "img.png",
+        mimeType: "image/png",
+        size: 1024,
+        content: null,
+        path: ".ai-factory/files/tasks/t1/img.png",
+      },
+    ]);
+    const result = formatAttachmentsForPrompt(input);
+    expect(result).toContain("file: .ai-factory/files/tasks/t1/img.png");
+    expect(result).not.toContain("[not provided]");
+  });
+
   it("truncates long content at 4000 chars", () => {
     const longContent = "x".repeat(5000);
     const input = JSON.stringify([

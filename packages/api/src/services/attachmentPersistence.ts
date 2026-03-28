@@ -1,6 +1,6 @@
 /**
  * Attachment persistence pipeline: converts incoming attachment payloads
- * (with inline content) into file-backed metadata (with storage paths).
+ * (with inline content) into file-backed metadata (with paths relative to project root).
  */
 
 import { logger } from "@aif/shared";
@@ -25,17 +25,17 @@ interface PersistedAttachment {
 }
 
 /**
- * Persist incoming attachments to storage and return DB-ready metadata.
+ * Persist incoming attachments to the project's .ai-factory/files/ directory
+ * and return DB-ready metadata.
  *
  * For each attachment:
  * - If it already has a `path` (re-sent from a previous save), keep it as-is.
  * - If it has inline `content`, write to disk and replace with path reference.
- *   For text files, a small content excerpt is preserved for agent prompts.
  * - If no content and no path, store as metadata-only.
  */
 export async function persistAttachments(
   attachments: IncomingAttachment[],
-  entityContext: { projectId: string; taskId: string; commentId?: string },
+  entityContext: { projectRoot: string; taskId: string; commentId?: string },
 ): Promise<PersistedAttachment[]> {
   if (attachments.length === 0) return [];
 
@@ -46,7 +46,7 @@ export async function persistAttachments(
       count: attachments.length,
       totalBytes: attachments.reduce((sum, a) => sum + a.size, 0),
     },
-    "Persisting attachments to storage",
+    "Persisting attachments to project files",
   );
 
   const persisted: PersistedAttachment[] = [];
@@ -84,7 +84,7 @@ export async function persistAttachments(
     try {
       const buffer = decodeContent(attachment.content, attachment.mimeType);
       const result = await saveAttachment({
-        projectId: entityContext.projectId,
+        projectRoot: entityContext.projectRoot,
         taskId: entityContext.taskId,
         commentId: entityContext.commentId,
         filename: attachment.name,
@@ -93,7 +93,7 @@ export async function persistAttachments(
 
       log.debug(
         { name: attachment.name, relativePath: result.relativePath, size: result.size },
-        "Attachment written to storage",
+        "Attachment written to project files",
       );
 
       persisted.push({
@@ -125,6 +125,7 @@ export async function persistAttachments(
  * Call this before persisting the new set when updating.
  */
 export function cleanupReplacedAttachments(
+  projectRoot: string,
   oldAttachments: PersistedAttachment[],
   newAttachments: IncomingAttachment[],
 ): void {
@@ -133,7 +134,7 @@ export function cleanupReplacedAttachments(
   for (const old of oldAttachments) {
     if (old.path && !newPaths.has(old.path)) {
       log.debug({ path: old.path }, "Cleaning up replaced attachment");
-      deleteAttachment(old.path);
+      deleteAttachment(projectRoot, old.path);
     }
   }
 }

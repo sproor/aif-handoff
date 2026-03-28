@@ -104,6 +104,13 @@ export function useWebSocket() {
 
       if (data.type === "task:deleted" && hasIdPayload(data.payload)) {
         statusCacheRef.current.delete(data.payload.id);
+        // Remove the individual task query from cache instead of invalidating
+        // (invalidating would trigger a refetch of the deleted task → 404)
+        queryClient.removeQueries({
+          queryKey: ["task", data.payload.id],
+        });
+        queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        return;
       }
 
       // Dispatch roadmap events as custom DOM events for listeners

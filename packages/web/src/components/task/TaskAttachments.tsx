@@ -1,15 +1,21 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import type { TaskCommentAttachment } from "@aif/shared/browser";
 import { Button } from "@/components/ui/button";
 
 interface TaskAttachmentsProps {
+  taskId: string;
   attachments: TaskCommentAttachment[];
   onFilesSelected: (files: FileList | null) => void;
   onRemove: (index: number) => void;
 }
 
-export function TaskAttachments({ attachments, onFilesSelected, onRemove }: TaskAttachmentsProps) {
+export function TaskAttachments({
+  taskId,
+  attachments,
+  onFilesSelected,
+  onRemove,
+}: TaskAttachmentsProps) {
   const [expanded, setExpanded] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
@@ -67,21 +73,33 @@ export function TaskAttachments({ attachments, onFilesSelected, onRemove }: Task
                 >
                   <span className="truncate">
                     {file.name} ({file.mimeType || "unknown"}, {file.size} bytes)
-                    {file.content == null && (
+                    {file.content == null && !file.path && (
                       <span className="ml-1 text-[10px] text-muted-foreground">
                         (metadata only)
                       </span>
                     )}
                   </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={() => onRemove(index)}
-                  >
-                    Remove
-                  </Button>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {file.path && (
+                      <a
+                        href={`/tasks/${taskId}/attachments/${encodeURIComponent(file.name)}`}
+                        download={file.name}
+                        className="inline-flex h-6 items-center gap-1 px-2 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                        title="Download"
+                      >
+                        <Download className="h-3 w-3" />
+                      </a>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => onRemove(index)}
+                    >
+                      Remove
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>

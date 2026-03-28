@@ -12,6 +12,7 @@ describe("TaskAttachments", () => {
   it("should render collapsed by default showing count", () => {
     render(
       <TaskAttachments
+        taskId="test-task-id"
         attachments={sampleAttachments}
         onFilesSelected={vi.fn()}
         onRemove={vi.fn()}
@@ -24,6 +25,7 @@ describe("TaskAttachments", () => {
   it("should expand and show attachment list on click", () => {
     render(
       <TaskAttachments
+        taskId="test-task-id"
         attachments={sampleAttachments}
         onFilesSelected={vi.fn()}
         onRemove={vi.fn()}
@@ -38,6 +40,7 @@ describe("TaskAttachments", () => {
   it("should show metadata-only badge for attachments without content", () => {
     render(
       <TaskAttachments
+        taskId="test-task-id"
         attachments={sampleAttachments}
         onFilesSelected={vi.fn()}
         onRemove={vi.fn()}
@@ -48,7 +51,14 @@ describe("TaskAttachments", () => {
   });
 
   it("should show empty message when no attachments", () => {
-    render(<TaskAttachments attachments={[]} onFilesSelected={vi.fn()} onRemove={vi.fn()} />);
+    render(
+      <TaskAttachments
+        taskId="test-task-id"
+        attachments={[]}
+        onFilesSelected={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
     fireEvent.click(screen.getByText("Show attachments (0)"));
     expect(screen.getByText("No files attached to this task.")).toBeDefined();
   });
@@ -57,6 +67,7 @@ describe("TaskAttachments", () => {
     const onRemove = vi.fn();
     render(
       <TaskAttachments
+        taskId="test-task-id"
         attachments={sampleAttachments}
         onFilesSelected={vi.fn()}
         onRemove={onRemove}
@@ -71,7 +82,12 @@ describe("TaskAttachments", () => {
   it("should call onFilesSelected when file input changes", () => {
     const onFilesSelected = vi.fn();
     const { container } = render(
-      <TaskAttachments attachments={[]} onFilesSelected={onFilesSelected} onRemove={vi.fn()} />,
+      <TaskAttachments
+        taskId="test-task-id"
+        attachments={[]}
+        onFilesSelected={onFilesSelected}
+        onRemove={vi.fn()}
+      />,
     );
     fireEvent.click(screen.getByText("Show attachments (0)"));
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
@@ -83,7 +99,12 @@ describe("TaskAttachments", () => {
   it("should call onFilesSelected on drop", () => {
     const onFilesSelected = vi.fn();
     render(
-      <TaskAttachments attachments={[]} onFilesSelected={onFilesSelected} onRemove={vi.fn()} />,
+      <TaskAttachments
+        taskId="test-task-id"
+        attachments={[]}
+        onFilesSelected={onFilesSelected}
+        onRemove={vi.fn()}
+      />,
     );
     fireEvent.click(screen.getByText("Show attachments (0)"));
     const dropZone = screen.getByText("Drag files here to attach");
