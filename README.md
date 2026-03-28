@@ -44,11 +44,14 @@ To use a separate API key, copy `.env.example` to `.env` and set `ANTHROPIC_API_
 
 ```
 packages/
-├── shared/    # Types, SQLite schema (drizzle-orm), DB connection, constants, logger
+├── shared/    # Types, schema, state machine, env, constants, logger
+├── data/      # Centralized DB access layer (@aif/data)
 ├── api/       # Hono REST + WebSocket server (port 3001)
 ├── web/       # React + Vite + TailwindCSS — Kanban UI (port 5173)
 └── agent/     # Coordinator (node-cron) + Claude Agent SDK subagents
 ```
+
+Database access is centralized in `packages/data`. `api` and `agent` must use `@aif/data`; direct DB imports in those packages are blocked by ESLint guards.
 
 ### Agent Pipeline
 

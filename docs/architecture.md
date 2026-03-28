@@ -4,7 +4,7 @@
 
 ## Overview
 
-AIF Handoff is a Turborepo monorepo with four packages. The system automates task management: a React Kanban UI lets users create tasks, an API manages state in SQLite, and an agent coordinator dispatches Claude Agent SDK subagents to plan, implement, and review each task.
+AIF Handoff is a Turborepo monorepo with five packages. The system automates task management: a React Kanban UI lets users create tasks, the API and agent operate through a centralized data layer backed by SQLite, and an agent coordinator dispatches Claude Agent SDK subagents to plan, implement, and review each task.
 
 ```
 ┌─────────────┐     HTTP/WS      ┌─────────────┐
@@ -25,27 +25,30 @@ AIF Handoff is a Turborepo monorepo with four packages. The system automates tas
 
 ## Packages
 
-| Package           | Name          | Purpose                                            |
-| ----------------- | ------------- | -------------------------------------------------- |
-| `packages/shared` | `@aif/shared` | Types, DB schema, state machine, constants, logger |
-| `packages/api`    | `@aif/api`    | Hono REST + WebSocket server (port 3001)           |
-| `packages/web`    | `@aif/web`    | React Kanban UI (port 5173)                        |
-| `packages/agent`  | `@aif/agent`  | Coordinator + Claude Agent SDK subagents           |
+| Package           | Name          | Purpose                                                     |
+| ----------------- | ------------- | ----------------------------------------------------------- |
+| `packages/shared` | `@aif/shared` | Types, schema, state machine, constants, env, logger        |
+| `packages/data`   | `@aif/data`   | Centralized DB access layer (all SQL/repository operations) |
+| `packages/api`    | `@aif/api`    | Hono REST + WebSocket server (port 3001)                    |
+| `packages/web`    | `@aif/web`    | React Kanban UI (port 5173)                                 |
+| `packages/agent`  | `@aif/agent`  | Coordinator + Claude Agent SDK subagents                    |
 
 ### Dependency Graph
 
 ```
-shared ← api
+shared ← data
 shared ← web (browser export only)
-shared ← agent
+data   ← api
+data   ← agent
 ```
 
 No cross-dependencies between `api`, `web`, and `agent`. Runtime integration is:
 
 - `web` ↔ `api` via HTTP/WebSocket
 - `agent` → Claude Agent SDK via SDK calls
-- `agent` → SQLite via `@aif/shared` (co-deployed orchestration path)
+- `api`/`agent` → SQLite via `@aif/data`
 - `agent` → `api` via HTTP for best-effort broadcast notifications
+- Lint guard enforces this boundary: `api` and `agent` cannot import DB helpers from `@aif/shared` or SQL builders directly.
 
 ## Agent Pipeline
 
@@ -132,7 +135,7 @@ Agent tool events are tracked in each task's `agentActivityLog` field. Two modes
 
 ## Database
 
-SQLite via `better-sqlite3` with `drizzle-orm` for type-safe queries. Schema is defined in `packages/shared/src/schema.ts`.
+SQLite via `better-sqlite3` with `drizzle-orm` for type-safe queries. Schema is defined in `packages/shared/src/schema.ts`, and all DB reads/writes are executed through `packages/data/src/index.ts`.
 
 Three tables:
 

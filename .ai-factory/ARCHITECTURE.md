@@ -2,7 +2,7 @@
 
 ## Overview
 
-AIF Handoff uses a Modular Monolith architecture implemented via Turborepo workspaces. Each package (`shared`, `api`, `web`, `agent`) is an independent module with its own build, tests, and dependencies — but they deploy and run together as a single system.
+AIF Handoff uses a Modular Monolith architecture implemented via Turborepo workspaces. Each package (`shared`, `data`, `api`, `web`, `agent`) is an independent module with its own build, tests, and dependencies — but they deploy and run together as a single system.
 
 This architecture was chosen because the project has clear domain boundaries (data layer, API, UI, agent orchestration) that benefit from strong module separation, while the small team and single-system deployment make microservices unnecessary overhead.
 
@@ -16,10 +16,9 @@ This architecture was chosen because the project has clear domain boundaries (da
 
 ```
 packages/
-├── shared/              # @aif/shared — foundation module (no package dependencies)
+├── shared/              # @aif/shared — foundation contracts module
 │   └── src/
 │       ├── schema.ts        # Drizzle ORM table definitions
-│       ├── db.ts            # Database connection factory
 │       ├── types.ts         # Shared TypeScript types & interfaces
 │       ├── stateMachine.ts  # Task stage transition rules
 │       ├── constants.ts     # Application constants
@@ -27,6 +26,10 @@ packages/
 │       ├── logger.ts        # Pino logger factory
 │       ├── index.ts         # Public API (Node.js)
 │       └── browser.ts       # Public API (browser-safe subset)
+│
+├── data/                # @aif/data — centralized data-access module
+│   └── src/
+│       └── index.ts         # Repository-style DB operations
 │
 ├── api/                 # @aif/api — HTTP + WebSocket server module
 │   └── src/
@@ -64,30 +67,35 @@ Module dependency graph (arrows = "depends on"):
 
 ```
 web ──→ shared (browser export)
-api ──→ shared
-agent ──→ shared
+data ──→ shared
+api ──→ data
+agent ──→ data
 ```
 
 ### Allowed
 
-- ✅ `api`, `web`, `agent` → import from `@aif/shared`
+- ✅ `data` → import from `@aif/shared`
+- ✅ `api`, `agent` → import from `@aif/data` for DB operations
+- ✅ `api`, `agent`, `web` → import shared contracts/types from `@aif/shared` as needed
 - ✅ `web` → import from `@aif/shared/browser` (browser-safe subset)
 - ✅ `web` → call `api` via HTTP/WebSocket at runtime (not import)
-- ✅ `agent` → call `api` via HTTP at runtime for broadcasts (see deviation note in point 4)
-- ✅ `agent` → direct DB access via `@aif/shared` for pipeline orchestration (intentional deviation)
+- ✅ `agent` → call `api` via HTTP at runtime for broadcasts
 
 ### Forbidden
 
 - ❌ `shared` → import from `api`, `web`, or `agent` (shared is the foundation, no upward deps)
+- ❌ `data` → import from `api`, `web`, or `agent`
 - ❌ `api` → import from `web` or `agent` (API is independent)
 - ❌ `web` → import from `api` or `agent` (UI communicates via HTTP/WS only)
-- ❌ `agent` → import from `api` or `web` (agent runtime integration is via HTTP + shared DB, not code imports)
+- ❌ `agent` → import from `api` or `web` (agent runtime integration is via HTTP, not code imports)
 - ❌ Cross-package deep imports (e.g., `@aif/shared/src/db` — use public API only)
+- ❌ DB access from `api`/`agent` outside `@aif/data` (enforced by lint guards)
 
 ## Module Communication
 
 - **web ↔ api:** HTTP REST calls + WebSocket for real-time updates
-- **agent → shared (DB):** Direct database access for pipeline orchestration (heartbeats, status transitions, stale recovery)
+- **api/agent → data:** DB operations through centralized repository layer
+- **data → shared:** Uses shared schema, DB helpers, and data contracts
 - **agent → api:** HTTP REST calls for WebSocket broadcasts (best-effort via notifier.ts)
 - **agent → Claude Agent SDK:** Spawns subagent processes using `.claude/agents/` definitions
 - **Shared types:** All modules import types and schemas from `@aif/shared`
@@ -98,11 +106,9 @@ agent ──→ shared
 
 2. **Shared is pure foundation** — The `shared` package contains only types, schemas, validation, and utilities. It has zero knowledge of HTTP, React, or agent logic. If code needs framework-specific features, it belongs in the consuming module.
 
-3. **Runtime communication over imports** — Modules that need to interact at runtime (web→api, agent→api) do so via HTTP/WebSocket, never via direct imports. Agent internal orchestration data access remains in `@aif/shared` by design for now.
+3. **Runtime communication over imports** — Modules that need to interact at runtime (web→api, agent→api) do so via HTTP/WebSocket, never via direct imports.
 
-4. **Single source of truth for data** — Database access lives exclusively in `shared` (schema + connection). The `api` module is the primary read/write interface for external clients. `web` always goes through the API via HTTP/WebSocket.
-
-   > **Intentional deviation (agent):** The `agent` package currently accesses the database directly via `@aif/shared` for performance-critical operations: heartbeat updates (every 30s), status transitions during pipeline execution, and stale task recovery. Routing these through HTTP would add latency and failure points on the critical path. The `notifier.ts` module does call the API via HTTP for WebSocket broadcasts (best-effort). When the agent moves to a separate process or host, these direct DB calls should migrate to API endpoints with proper auth.
+4. **Single source of truth for data access** — Database schema and low-level primitives live in `shared`, but all reads/writes outside `shared` go through `@aif/data`. This keeps query construction and repository logic centralized. `web` always goes through the API via HTTP/WebSocket.
 
 5. **Agent definitions are config, not code** — Subagent behavior is defined in `.claude/agents/*.md` files, loaded by the Agent SDK via `settingSources: ["project"]`. The `agent` package orchestrates when to invoke them, not what they do.
 
@@ -114,8 +120,8 @@ agent ──→ shared
 
 ```typescript
 // In packages/api/src/routes/tasks.ts
-import { tasks, TaskStatus } from "@aif/shared";
-import { db } from "@aif/shared";
+import { listTasks, toTaskResponse } from "@aif/data";
+import { TaskStatus } from "@aif/shared";
 
 // In packages/web/src/hooks/useTasks.ts
 import { TaskStatus, type Task } from "@aif/shared/browser";
@@ -128,14 +134,18 @@ import { TaskStatus, type Task } from "@aif/shared/browser";
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db } from "@aif/shared";
+import { createTask, toTaskResponse } from "@aif/data";
 
 const app = new Hono();
 
-app.get("/", async (c) => {
-  // Query using drizzle-orm
-  const results = await db.select().from(someTable);
-  return c.json(results);
+app.post("/", async (c) => {
+  const body = await c.req.json();
+  const created = createTask({
+    projectId: body.projectId,
+    title: body.title,
+    description: body.description,
+  });
+  return c.json(created ? toTaskResponse(created) : null);
 });
 
 export default app;
@@ -172,7 +182,7 @@ export async function fetchTasks(projectId: string) {
 ## Anti-Patterns
 
 - ❌ **Importing across sibling packages** — Never `import { something } from "@aif/api"` inside `@aif/web`. Use HTTP calls instead.
-- ❌ **Putting DB queries in api routes directly** — Keep data access in shared or use repository functions. Routes should be thin.
+- ❌ **Putting DB queries in api/agent directly** — Keep data access in `@aif/data`. Routes/coordinator should stay thin.
 - ❌ **Shared depending on Node-only APIs without a browser guard** — `shared/browser.ts` must remain browser-safe. Node-only code stays in `shared/index.ts`.
 - ❌ **Hardcoding agent prompts in TypeScript** — Agent behavior belongs in `.claude/agents/*.md` files, not in the `agent` package source code.
-- ❌ **Introducing new external clients with direct DB writes** — `web` and any third-party integrations must go through API endpoints. Current direct DB writes are limited to the co-deployed `agent` service and should not expand to new client surfaces.
+- ❌ **Introducing new external clients with direct DB writes** — `web` and any third-party integrations must go through API endpoints.

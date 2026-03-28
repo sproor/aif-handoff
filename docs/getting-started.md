@@ -18,7 +18,7 @@ npm install
 
 ## Database Setup
 
-The project uses SQLite via `better-sqlite3` + `drizzle-orm`. Initialize the database:
+The project uses SQLite via `better-sqlite3` + `drizzle-orm`. DB access in runtime services is centralized in `@aif/data` (lint-enforced boundary for `api` and `agent`). Initialize the database:
 
 ```bash
 npm run db:setup

@@ -20,10 +20,9 @@ Autonomous task management system with Kanban board and AI subagents. Tasks flow
 
 ```
 packages/
-├── shared/              # @aif/shared — types, schema, DB, constants, logger
+├── shared/              # @aif/shared — contracts, schema, state machine, env, constants, logger
 │   └── src/
 │       ├── schema.ts        # Drizzle ORM schema (SQLite)
-│       ├── db.ts            # Database connection
 │       ├── types.ts         # Shared TypeScript types
 │       ├── stateMachine.ts  # Task stage transitions
 │       ├── constants.ts     # App constants
@@ -31,6 +30,9 @@ packages/
 │       ├── logger.ts        # Pino logger setup
 │       ├── index.ts         # Node exports
 │       └── browser.ts       # Browser-safe exports
+├── data/                # @aif/data — centralized data-access layer
+│   └── src/
+│       └── index.ts         # Repository-style DB operations for API/Agent
 ├── api/                 # @aif/api — Hono REST + WebSocket server (port 3001)
 │   └── src/
 │       ├── index.ts         # Server entry point
@@ -70,6 +72,7 @@ data/                    # SQLite database files (gitignored)
 | `packages/api/src/index.ts`           | API server entry (Hono, port 3001) |
 | `packages/web/src/main.tsx`           | Web app entry (React, port 5173)   |
 | `packages/agent/src/index.ts`         | Agent coordinator entry            |
+| `packages/data/src/index.ts`          | Centralized data-access API        |
 | `packages/shared/src/schema.ts`       | Database schema (drizzle-orm)      |
 | `packages/shared/src/stateMachine.ts` | Task state transitions             |
 | `turbo.json`                          | Turborepo task definitions         |
@@ -100,6 +103,8 @@ data/                    # SQLite database files (gitignored)
 - Never combine shell commands with `&&`, `||`, or `;` — execute each command as a separate Bash tool call. This applies even when a skill, plan, or instruction provides a combined command — always decompose it into individual calls.
   - Wrong: `git checkout main && git pull`
   - Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
+- DB boundary is mandatory: `api` and `agent` access database only through `@aif/data`. Direct imports of DB helpers from `@aif/shared/server` and direct SQL construction imports are blocked by ESLint.
 
 - **AIF Workflow Required:** All subagents in `packages/agent/src/subagents/` MUST use `.claude/agents/` definitions via `extraArgs: { agent: "<agent-name>" }`. Never use raw `query()` with a generic prompt — always select the appropriate agent definition so the full AIF workflow is invoked (iterative refinement, quality sidecars, etc.). Exception: simple validation tasks (like `planChecker.ts`) that have no corresponding agent definition and require only a single-pass check.
   - `planner.ts` → `plan-coordinator` (spawns `plan-polisher` for iterative refinement)

@@ -28,10 +28,13 @@ Autonomous task management system with Kanban board and AI subagents. Tasks flow
 
 ## Architecture
 
-- **shared** (`@aif/shared`) — Types, SQLite schema (drizzle-orm), DB connection, state machine, constants, logger
+- **shared** (`@aif/shared`) — Types, SQLite schema (drizzle-orm), state machine, constants, env, logger
+- **data** (`@aif/data`) — Centralized data-access layer for all DB reads/writes
 - **api** (`@aif/api`) — Hono REST + WebSocket server (port 3001)
 - **web** (`@aif/web`) — React SPA Kanban UI (port 5173)
 - **agent** (`@aif/agent`) — Coordinator (node-cron polling) + Claude Agent SDK subagents
+
+Lint guard enforces DB boundaries: `api` and `agent` can access DB only through `@aif/data`.
 
 ## Agent Pipeline
 
