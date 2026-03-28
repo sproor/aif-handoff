@@ -65,7 +65,11 @@ function AppContent() {
     const savedId = readStorage(STORAGE_KEYS.SELECTED_PROJECT);
     if (savedId) {
       const found = projects.find((p) => p.id === savedId);
-      if (found) setProject(found);
+      if (found) {
+        queueMicrotask(() => {
+          setProject(found);
+        });
+      }
     }
   }, [projects, project]);
 

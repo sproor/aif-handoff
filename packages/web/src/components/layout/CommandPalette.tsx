@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Project, Task } from "@aif/shared/browser";
-import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 interface CommandPaletteProps {
@@ -39,10 +45,6 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    if (!open) setQuery("");
-  }, [open]);
-
   const actions = useMemo<PaletteAction[]>(() => {
     const baseActions: PaletteAction[] = [
       {
@@ -67,7 +69,10 @@ export function CommandPalette({
 
     const projectActions = projects.map((project) => ({
       id: `project-${project.id}`,
-      label: project.id === selectedProjectId ? `Project: ${project.name} (current)` : `Project: ${project.name}`,
+      label:
+        project.id === selectedProjectId
+          ? `Project: ${project.name} (current)`
+          : `Project: ${project.name}`,
       hint: "Project",
       run: () => {
         onSelectProject(project);
@@ -86,16 +91,37 @@ export function CommandPalette({
     }));
 
     return [...baseActions, ...projectActions, ...taskActions];
-  }, [density, onOpenChange, onOpenTask, onSelectProject, onToggleDensity, onToggleTheme, projects, selectedProjectId, tasks, theme]);
+  }, [
+    density,
+    onOpenChange,
+    onOpenTask,
+    onSelectProject,
+    onToggleDensity,
+    onToggleTheme,
+    projects,
+    selectedProjectId,
+    tasks,
+    theme,
+  ]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return actions;
-    return actions.filter((action) => action.label.toLowerCase().includes(normalized) || action.hint.toLowerCase().includes(normalized));
+    return actions.filter(
+      (action) =>
+        action.label.toLowerCase().includes(normalized) ||
+        action.hint.toLowerCase().includes(normalized),
+    );
   }, [actions, query]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) setQuery("");
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent className="max-w-2xl p-0">
         <DialogClose onClose={() => onOpenChange(false)} />
         <DialogHeader className="mb-0 border-b border-border p-4">

@@ -50,6 +50,8 @@ API exposes `GET /agent/readiness` to verify auth state at runtime:
 
 The database is a single SQLite file. The default path `./data/aif.sqlite` is relative to the project root.
 
+Runtime DB access is centralized in `@aif/data`. `@aif/api` and `@aif/agent` are lint-restricted from importing DB helpers and SQL builders directly.
+
 To use a different location:
 
 ```

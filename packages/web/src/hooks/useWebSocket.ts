@@ -27,21 +27,25 @@ export function useWebSocket() {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const statusCacheRef = useRef<Map<string, TaskStatus>>(new Map());
   const intentionalCloseRef = useRef(false);
+  const connectRef = useRef<() => void>(() => undefined);
   const { settings } = useNotificationSettings();
 
-  const findTaskStatusInCache = useCallback((taskId: string): TaskStatus | null => {
-    const detailed = queryClient.getQueryData<Task>(["task", taskId]);
-    if (detailed) return detailed.status;
+  const findTaskStatusInCache = useCallback(
+    (taskId: string): TaskStatus | null => {
+      const detailed = queryClient.getQueryData<Task>(["task", taskId]);
+      if (detailed) return detailed.status;
 
-    const taskLists = queryClient.getQueriesData<Task[]>({ queryKey: ["tasks"] });
-    for (const [, tasks] of taskLists) {
-      if (!tasks) continue;
-      const found = tasks.find((task) => task.id === taskId);
-      if (found) return found.status;
-    }
+      const taskLists = queryClient.getQueriesData<Task[]>({ queryKey: ["tasks"] });
+      for (const [, tasks] of taskLists) {
+        if (!tasks) continue;
+        const found = tasks.find((task) => task.id === taskId);
+        if (found) return found.status;
+      }
 
-    return null;
-  }, [queryClient]);
+      return null;
+    },
+    [queryClient],
+  );
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -84,7 +88,7 @@ export function useWebSocket() {
                 movedTask.id,
                 movedTask.title,
                 previousStatus,
-                movedTask.status
+                movedTask.status,
               );
             } catch (error) {
               console.debug("[ws] Failed to show desktop notification:", error);
@@ -118,7 +122,7 @@ export function useWebSocket() {
         return;
       }
       console.debug("[ws] Disconnected, reconnecting in 3s...");
-      reconnectTimer.current = setTimeout(connect, 3000);
+      reconnectTimer.current = setTimeout(() => connectRef.current(), 3000);
     };
 
     ws.onerror = (error) => {
@@ -128,6 +132,10 @@ export function useWebSocket() {
 
     wsRef.current = ws;
   }, [findTaskStatusInCache, queryClient, settings.desktop, settings.sound]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     connect();
@@ -146,7 +154,7 @@ export function useWebSocket() {
           () => {
             ws.close();
           },
-          { once: true }
+          { once: true },
         );
         return;
       }

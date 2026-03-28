@@ -23,9 +23,9 @@ Instead, please email security concerns to the maintainers or use [GitHub's priv
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| Latest `main` | Yes |
+| Version       | Supported |
+| ------------- | --------- |
+| Latest `main` | Yes       |
 
 ## Security Considerations
 
@@ -33,3 +33,9 @@ Instead, please email security concerns to the maintainers or use [GitHub's priv
 - The SQLite database is stored locally in `data/` — ensure appropriate file permissions
 - The WebSocket endpoint has no authentication — intended for local development use
 - Never commit `.env` files or API keys to the repository
+
+## Dependency Audit Policy
+
+- CI security gate for shipped/runtime risk uses `npm audit --omit=dev`.
+- Full `npm audit` may include dev-tooling findings (for example migration/lint/build chains) that do not ship in runtime artifacts.
+- Dev-only findings are triaged separately and may be tracked as accepted risk with periodic re-evaluation.

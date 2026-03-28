@@ -17,18 +17,18 @@
   "dependencies": {
     "@aif/data": "*",
     "@aif/shared": "*",
-    "@anthropic-ai/claude-agent-sdk": "^0.2.85",
-    "@hono/node-server": "^1.14.0",
-    "@hono/node-ws": "^1.1.0",
-    "@hono/zod-validator": "^0.4.0",
-    "hono": "^4.7.0",
-    "ws": "^8.18.0",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.86",
+    "@hono/node-server": "^1.19.11",
+    "@hono/node-ws": "^1.3.0",
+    "@hono/zod-validator": "^0.7.6",
+    "hono": "^4.12.9",
+    "ws": "^8.20.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.14",
-    "tsx": "^4.19.0",
-    "typescript": "^5.8.0",
-    "vitest": "^3.1.0"
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.2"
   }
 }

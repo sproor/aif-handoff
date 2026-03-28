@@ -2,17 +2,13 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    exclude: ["dist/**", "**/node_modules/**", "**/.git/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "text-summary", "json-summary"],
       reportsDirectory: "./coverage",
       include: ["src/**/*.ts"],
-      exclude: [
-        "src/index.ts",
-        "src/ws.ts",
-        "src/middleware/**",
-        "src/routes/projects.ts",
-      ],
+      exclude: ["src/index.ts", "src/ws.ts", "src/middleware/**", "src/routes/projects.ts"],
       thresholds: {
         lines: 70,
         functions: 70,
