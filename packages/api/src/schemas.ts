@@ -32,6 +32,7 @@ export const createTaskSchema = z.object({
   planDocs: z.boolean().default(false),
   planTests: z.boolean().default(false),
   skipReview: z.boolean().default(false),
+  useSubagents: z.boolean().default(true),
   roadmapAlias: z.string().max(200).optional(),
   tags: z.array(z.string().max(100)).max(50).default([]),
 });
@@ -48,6 +49,7 @@ export const updateTaskSchema = z.object({
   planDocs: z.boolean().optional(),
   planTests: z.boolean().optional(),
   skipReview: z.boolean().optional(),
+  useSubagents: z.boolean().optional(),
   plan: z.string().nullable().optional(),
   implementationLog: z.string().nullable().optional(),
   reviewComments: z.string().nullable().optional(),

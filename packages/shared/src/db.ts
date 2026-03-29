@@ -66,6 +66,7 @@ function ensureTables(sqlite: Database.Database): void {
       plan_docs INTEGER NOT NULL DEFAULT 0,
       plan_tests INTEGER NOT NULL DEFAULT 0,
       skip_review INTEGER NOT NULL DEFAULT 0,
+      use_subagents INTEGER NOT NULL DEFAULT 1,
       status TEXT NOT NULL DEFAULT 'backlog',
       priority INTEGER NOT NULL DEFAULT 0,
       position REAL NOT NULL DEFAULT 1000.0,
@@ -125,6 +126,7 @@ function ensureTables(sqlite: Database.Database): void {
   ensureColumn(sqlite, "tasks", "plan_docs", "plan_docs INTEGER NOT NULL DEFAULT 0");
   ensureColumn(sqlite, "tasks", "plan_tests", "plan_tests INTEGER NOT NULL DEFAULT 0");
   ensureColumn(sqlite, "tasks", "skip_review", "skip_review INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(sqlite, "tasks", "use_subagents", "use_subagents INTEGER NOT NULL DEFAULT 1");
   ensureColumn(sqlite, "projects", "planner_max_budget_usd", "planner_max_budget_usd REAL");
   ensureColumn(
     sqlite,

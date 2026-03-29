@@ -81,7 +81,9 @@ describe("runPlanner comment selection", () => {
 
     expect(queryMock).toHaveBeenCalledTimes(1);
     const call = queryMock.mock.calls[0]?.[0] as { prompt: string };
-    expect(call.prompt).toContain("/aif-plan full @.ai-factory/PLAN.md docs:false tests:false");
+    expect(call.prompt).not.toContain("/aif-plan");
+    expect(call.prompt).toContain("Mode: full, tests: false, docs: false.");
+    expect(call.prompt).toContain("Plan file: @.ai-factory/PLAN.md");
     expect(call.prompt).toContain("message: comment-12");
     expect(call.prompt).not.toContain("message: comment-11");
     expect(call.prompt).not.toContain("message: comment-01");
@@ -189,5 +191,25 @@ describe("runPlanner comment selection", () => {
 
     const updatedTask = db.select().from(tasks).where(eq(tasks.id, "task-fallback")).get();
     expect(updatedTask?.plan).toBe("## Fallback Plan\n- [ ] Step from fallback");
+  });
+
+  it("uses /aif-plan command format only in skill mode", async () => {
+    const db = testDb.current;
+    db.insert(tasks)
+      .values({
+        id: "task-skill-1",
+        projectId: "project-1",
+        title: "Skill mode task",
+        description: "Desc",
+        status: "planning",
+        planPath: ".ai-factory/PLAN.md",
+        useSubagents: false,
+      })
+      .run();
+
+    await runPlanner("task-skill-1", "/tmp/planner-test");
+
+    const call = queryMock.mock.calls[0]?.[0] as { prompt: string };
+    expect(call.prompt).toContain("/aif-plan full @.ai-factory/PLAN.md docs:false tests:false");
   });
 });

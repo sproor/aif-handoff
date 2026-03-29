@@ -134,7 +134,7 @@ The system supports bulk task creation from a project's `.ai-factory/ROADMAP.md`
 
 **Deduplication:** Re-running import with the same alias is safe — existing tasks with matching titles are skipped. This makes the endpoint idempotent for reruns.
 
-**Tag taxonomy:** Tags enable UI filtering. The `roadmap` quick filter in the Board shows only roadmap-generated tasks. Tags like `rm:v1.0` or `phase:backend` allow future grouping refinements.
+**Tag taxonomy:** Tags enable UI filtering. The `roadmap` quick filter in the Board shows only roadmap-generated tasks. When the roadmap filter is active, a sub-filter row displays all available `roadmapAlias` values (e.g., `v1.0`, `v2.0`) as clickable chips, allowing users to narrow results to a specific roadmap. Selecting no alias shows all roadmap tasks; selecting one or more aliases filters to only those. Tags like `phase:backend` allow additional grouping refinements.
 
 **Logging:** Import logs at INFO level for start/finish with counts, DEBUG for per-task decisions, and ERROR for parse/validation failures. Check API logs during failures by filtering for the `roadmap-generation` component.
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { findProjectById, findTaskById, listTaskComments, persistTaskPlanForTask } from "@aif/data";
-import { logger, formatAttachmentsForPrompt, getEnv } from "@aif/shared";
+import { logger, formatAttachmentsForPrompt } from "@aif/shared";
 import { executeSubagentQuery } from "../subagentQuery.js";
 
 const log = logger("planner");
@@ -126,7 +126,7 @@ export async function runPlanner(taskId: string, projectRoot: string): Promise<v
     throw new Error(`Task ${taskId} not found`);
   }
 
-  const useSubagents = getEnv().AGENT_USE_SUBAGENTS;
+  const useSubagents = task.useSubagents;
   const executionName = task.isFix ? FIX_SKILL_NAME : useSubagents ? AGENT_NAME : "aif-plan";
   log.info({ taskId, title: task.title, isFix: task.isFix }, "Starting planning flow");
   const project = findProjectById(task.projectId);
@@ -148,6 +148,15 @@ ${commentsForPrompt}`;
   let prompt: string;
   if (task.isFix) {
     prompt = buildFixCommandText(task.title, task.description);
+  } else if (useSubagents) {
+    prompt = `Plan the implementation for the following task.
+Mode: ${plannerMode}, tests: ${planTests}, docs: ${planDocs}.
+Plan file: @${planPath}
+
+${taskContext}
+
+Create or refine an implementation-ready markdown checklist plan.
+Always write the final plan to @${planPath}.`;
   } else {
     prompt = `/aif-plan ${plannerMode} @${planPath} docs:${planDocs} tests:${planTests}
 

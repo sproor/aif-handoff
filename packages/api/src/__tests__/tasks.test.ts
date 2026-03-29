@@ -169,6 +169,37 @@ describe("tasks API", () => {
       expect(body.skipReview).toBe(false);
     });
 
+    it("should persist useSubagents from create payload", async () => {
+      const res = await app.request("/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Task without subagents",
+          projectId: "test-project",
+          useSubagents: false,
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.useSubagents).toBe(false);
+    });
+
+    it("should default useSubagents to true", async () => {
+      const res = await app.request("/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Task with default subagents",
+          projectId: "test-project",
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.useSubagents).toBe(true);
+    });
+
     it("should create a fix task when isFix=true", async () => {
       const res = await app.request("/tasks", {
         method: "POST",
@@ -263,6 +294,23 @@ describe("tasks API", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.skipReview).toBe(true);
+    });
+
+    it("should update useSubagents via PUT", async () => {
+      const db = testDb.current;
+      db.insert(tasks)
+        .values({ id: "upd-usa", projectId: "test-project", title: "USA task" })
+        .run();
+
+      const res = await app.request("/tasks/upd-usa", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ useSubagents: false }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.useSubagents).toBe(false);
     });
 
     it("should sync physical plan file when updating plan via PUT", async () => {

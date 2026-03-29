@@ -1,5 +1,5 @@
 import { findProjectById, findTaskById, setTaskFields } from "@aif/data";
-import { logger, formatAttachmentsForPrompt, getEnv } from "@aif/shared";
+import { logger, formatAttachmentsForPrompt } from "@aif/shared";
 import { logActivity } from "../hooks.js";
 import { executeSubagentQuery, startHeartbeat } from "../subagentQuery.js";
 
@@ -34,7 +34,7 @@ export async function runReviewer(taskId: string, projectRoot: string): Promise<
 
   const project = findProjectById(task.projectId);
   const sidecarBudget = project?.reviewSidecarMaxBudgetUsd ?? null;
-  const useSubagents = getEnv().AGENT_USE_SUBAGENTS;
+  const useSubagents = task.useSubagents;
 
   log.info({ taskId, title: task.title, useSubagents }, "Starting review stage");
 

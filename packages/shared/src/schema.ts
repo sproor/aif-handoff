@@ -38,6 +38,7 @@ export const tasks = sqliteTable("tasks", {
   planDocs: integer("plan_docs", { mode: "boolean" }).notNull().default(false),
   planTests: integer("plan_tests", { mode: "boolean" }).notNull().default(false),
   skipReview: integer("skip_review", { mode: "boolean" }).notNull().default(false),
+  useSubagents: integer("use_subagents", { mode: "boolean" }).notNull().default(true),
   status: text("status").$type<TaskStatus>().notNull().default("backlog"),
   priority: integer("priority").notNull().default(0),
   position: real("position").notNull().default(1000.0),

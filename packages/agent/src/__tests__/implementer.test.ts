@@ -123,7 +123,10 @@ describe("runImplementer rework behavior", () => {
 
     expect(queryMock).toHaveBeenCalledTimes(1);
     const call = queryMock.mock.calls[0]?.[0] as { prompt: string };
-    expect(call.prompt).toContain("/aif-implement @.ai-factory/PLAN.md");
+    const firstLine = call.prompt.split("\n")[0] ?? "";
+    expect(firstLine).toBe("Implement the task using the provided plan.");
+    expect(call.prompt).toContain("Implement the task using the provided plan.");
+    expect(call.prompt).toContain("Plan path:\n@.ai-factory/PLAN.md");
     expect(call.prompt).toContain("Rework mode: true");
     expect(call.prompt).toContain("message: latest-human");
     expect(call.prompt).not.toContain("message: first-human");
@@ -158,7 +161,9 @@ describe("runImplementer rework behavior", () => {
 
     expect(queryMock).toHaveBeenCalledTimes(2);
     const call = queryMock.mock.calls[0]?.[0] as { prompt: string };
-    expect(call.prompt).toContain("/aif-implement @.ai-factory/PLAN.md");
+    const firstLine = call.prompt.split("\n")[0] ?? "";
+    expect(firstLine).toBe("Implement the task using the provided plan.");
+    expect(call.prompt).toContain("Implement the task using the provided plan.");
     const syncCall = queryMock.mock.calls[1]?.[0] as { prompt: string };
     expect(syncCall.prompt).toContain("Update only checkbox states");
     const updatedTask = db.select().from(tasks).where(eq(tasks.id, "task-3")).get();
@@ -185,7 +190,9 @@ describe("runImplementer rework behavior", () => {
 
     expect(queryMock).toHaveBeenCalledTimes(1);
     const call = queryMock.mock.calls[0]?.[0] as { prompt: string };
-    expect(call.prompt).toContain("/aif-implement @.ai-factory/PLAN.md");
+    const firstLine = call.prompt.split("\n")[0] ?? "";
+    expect(firstLine).toBe("Implement the task using the provided plan.");
+    expect(call.prompt).toContain("Implement the task using the provided plan.");
     const updatedTask = db.select().from(tasks).where(eq(tasks.id, "task-4")).get();
     expect(updatedTask?.implementationLog).toBe("Implementation done");
   });
@@ -215,5 +222,26 @@ describe("runImplementer rework behavior", () => {
     expect(updatedTask?.implementationLog).toContain(
       "Checklist remains incomplete after auto-sync",
     );
+  });
+
+  it("uses /aif-implement command format only in skill mode", async () => {
+    const db = testDb.current;
+    db.insert(tasks)
+      .values({
+        id: "task-skill-impl",
+        projectId: "project-1",
+        title: "Task",
+        description: "Desc",
+        status: "implementing",
+        plan: "## Plan\n- [ ] Task 1: Pending",
+        reworkRequested: false,
+        useSubagents: false,
+      })
+      .run();
+
+    await runImplementer("task-skill-impl", projectRoot);
+
+    const call = queryMock.mock.calls[0]?.[0] as { prompt: string };
+    expect(call.prompt).toContain("/aif-implement @.ai-factory/PLAN.md");
   });
 });

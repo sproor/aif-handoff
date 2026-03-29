@@ -10,7 +10,7 @@ import {
   incrementTaskTokenUsage,
   type TaskRow,
 } from "@aif/data";
-import { logger, formatAttachmentsForPrompt, getEnv, looksLikeFullPlanUpdate } from "@aif/shared";
+import { logger, formatAttachmentsForPrompt, looksLikeFullPlanUpdate } from "@aif/shared";
 import { logActivity } from "../hooks.js";
 import { executeSubagentQuery } from "../subagentQuery.js";
 import { computePendingPlanLayers, computePlanLayers } from "../planLayers.js";
@@ -154,7 +154,7 @@ export async function runImplementer(taskId: string, projectRoot: string): Promi
   }
   const project = findProjectById(task.projectId);
   const implementerBudget = project?.implementerMaxBudgetUsd ?? null;
-  const useSubagents = getEnv().AGENT_USE_SUBAGENTS;
+  const useSubagents = task.useSubagents;
   const executionName = useSubagents ? AGENT_NAME : "aif-implement";
   const canonicalPlan = readCanonicalPlan(task, projectRoot);
   const selectedPlan = canonicalPlan ?? task.plan;
@@ -195,7 +195,7 @@ export async function runImplementer(taskId: string, projectRoot: string): Promi
 
   log.info({ taskId, title: task.title, useSubagents }, "Starting implementation stage");
 
-  const prompt = `/aif-implement ${planSection}
+  const prompt = `${useSubagents ? "Implement the task using the provided plan." : `/aif-implement ${planSection}`}
 
 IMPORTANT: Your working directory is ${projectRoot}
 All files must be created and modified inside this directory. Do NOT create files outside of it.

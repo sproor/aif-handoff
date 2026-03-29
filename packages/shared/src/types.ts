@@ -55,6 +55,7 @@ export interface Task {
   planDocs: boolean;
   planTests: boolean;
   skipReview: boolean;
+  useSubagents: boolean;
   status: TaskStatus;
   priority: number;
   position: number;
@@ -106,6 +107,7 @@ export interface CreateTaskInput {
   planDocs?: boolean;
   planTests?: boolean;
   skipReview?: boolean;
+  useSubagents?: boolean;
   roadmapAlias?: string;
   tags?: string[];
 }
@@ -123,6 +125,7 @@ export interface UpdateTaskInput {
   planDocs?: boolean;
   planTests?: boolean;
   skipReview?: boolean;
+  useSubagents?: boolean;
   plan?: string | null;
   implementationLog?: string | null;
   reviewComments?: string | null;

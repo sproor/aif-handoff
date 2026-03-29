@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Task } from "@aif/shared/browser";
 
@@ -26,6 +26,8 @@ const mockTasks: Task[] = [
     planPath: ".ai-factory/PLAN.md",
     planDocs: false,
     planTests: false,
+    skipReview: false,
+    useSubagents: false,
     reworkRequested: false,
     lastHeartbeatAt: null,
     roadmapAlias: null,
@@ -55,6 +57,8 @@ const mockTasks: Task[] = [
     planPath: ".ai-factory/PLAN.md",
     planDocs: false,
     planTests: false,
+    skipReview: false,
+    useSubagents: false,
     reworkRequested: false,
     lastHeartbeatAt: null,
     roadmapAlias: null,
@@ -145,6 +149,157 @@ describe("Board", () => {
     expect(screen.getByText("Status")).toBeDefined();
     expect(screen.getByText("Test Task 1")).toBeDefined();
     expect(screen.getByText("Test Task 2")).toBeDefined();
+  });
+
+  it("should show roadmap alias sub-filters when roadmap filter is active", () => {
+    // Add roadmap tasks to mock data
+    const originalLength = mockTasks.length;
+    mockTasks.push(
+      {
+        id: "rm-1",
+        projectId: "test-project",
+        title: "Roadmap Task A",
+        description: "",
+        autoMode: true,
+        isFix: false,
+        plannerMode: "full",
+        planPath: ".ai-factory/PLAN.md",
+        planDocs: false,
+        planTests: false,
+        skipReview: false,
+        useSubagents: false,
+        status: "backlog",
+        priority: 1,
+        position: 2000,
+        plan: null,
+        implementationLog: null,
+        reviewComments: null,
+        agentActivityLog: null,
+        blockedReason: null,
+        blockedFromStatus: null,
+        retryAfter: null,
+        retryCount: 0,
+        reworkRequested: false,
+        lastHeartbeatAt: null,
+        roadmapAlias: "v1.0",
+        tags: ["roadmap", "rm:v1.0"],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "rm-2",
+        projectId: "test-project",
+        title: "Roadmap Task B",
+        description: "",
+        autoMode: true,
+        isFix: false,
+        plannerMode: "full",
+        planPath: ".ai-factory/PLAN.md",
+        planDocs: false,
+        planTests: false,
+        skipReview: false,
+        useSubagents: false,
+        status: "backlog",
+        priority: 1,
+        position: 3000,
+        plan: null,
+        implementationLog: null,
+        reviewComments: null,
+        agentActivityLog: null,
+        blockedReason: null,
+        blockedFromStatus: null,
+        retryAfter: null,
+        retryCount: 0,
+        reworkRequested: false,
+        lastHeartbeatAt: null,
+        roadmapAlias: "v2.0",
+        tags: ["roadmap", "rm:v2.0"],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    );
+
+    render(<Board projectId="test-project" onTaskClick={vi.fn()} density="comfortable" />, {
+      wrapper: Wrapper,
+    });
+
+    // Activate roadmap filter
+    fireEvent.click(screen.getByText("roadmap"));
+
+    // Sub-filter row should appear with alias chips
+    const aliasRow = screen.getByTestId("roadmap-alias-filters");
+    expect(within(aliasRow).getByText("v1.0")).toBeDefined();
+    expect(within(aliasRow).getByText("v2.0")).toBeDefined();
+
+    // Both roadmap tasks visible
+    expect(screen.getByText("Roadmap Task A")).toBeDefined();
+    expect(screen.getByText("Roadmap Task B")).toBeDefined();
+
+    // Click v1.0 alias — only v1.0 tasks should remain
+    fireEvent.click(within(aliasRow).getByText("v1.0"));
+    expect(screen.getByText("Roadmap Task A")).toBeDefined();
+    expect(screen.queryByText("Roadmap Task B")).toBeNull();
+
+    // Click v1.0 again to deselect — both visible again
+    fireEvent.click(within(aliasRow).getByText("v1.0"));
+    expect(screen.getByText("Roadmap Task A")).toBeDefined();
+    expect(screen.getByText("Roadmap Task B")).toBeDefined();
+
+    // Cleanup
+    mockTasks.splice(originalLength);
+  });
+
+  it("should clear roadmap alias sub-filters when roadmap filter is deactivated", () => {
+    const originalLength = mockTasks.length;
+    mockTasks.push({
+      id: "rm-3",
+      projectId: "test-project",
+      title: "Roadmap Task C",
+      description: "",
+      autoMode: true,
+      isFix: false,
+      plannerMode: "full",
+      planPath: ".ai-factory/PLAN.md",
+      planDocs: false,
+      planTests: false,
+      skipReview: false,
+      useSubagents: false,
+      status: "backlog",
+      priority: 1,
+      position: 2000,
+      plan: null,
+      implementationLog: null,
+      reviewComments: null,
+      agentActivityLog: null,
+      blockedReason: null,
+      blockedFromStatus: null,
+      retryAfter: null,
+      retryCount: 0,
+      reworkRequested: false,
+      lastHeartbeatAt: null,
+      roadmapAlias: "v1.0",
+      tags: ["roadmap", "rm:v1.0"],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    render(<Board projectId="test-project" onTaskClick={vi.fn()} density="comfortable" />, {
+      wrapper: Wrapper,
+    });
+
+    // Activate roadmap filter, select alias
+    fireEvent.click(screen.getByText("roadmap"));
+    const aliasRow = screen.getByTestId("roadmap-alias-filters");
+    fireEvent.click(within(aliasRow).getByText("v1.0"));
+
+    // Deactivate roadmap filter
+    fireEvent.click(screen.getByText("roadmap"));
+
+    // Sub-filter row should disappear
+    expect(screen.queryByTestId("roadmap-alias-filters")).toBeNull();
+
+    // Cleanup
+    mockTasks.splice(originalLength);
   });
 
   it("should filter list view by search query", () => {

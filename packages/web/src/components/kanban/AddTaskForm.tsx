@@ -21,6 +21,7 @@ export function AddTaskForm({ projectId }: Props) {
   const [planDocs, setPlanDocs] = useState(false);
   const [planTests, setPlanTests] = useState(false);
   const [skipReview, setSkipReview] = useState(false);
+  const [useSubagents, setUseSubagents] = useState(true);
   const createTask = useCreateTask();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -40,6 +41,7 @@ export function AddTaskForm({ projectId }: Props) {
         planDocs,
         planTests,
         skipReview,
+        useSubagents,
       },
       {
         onSuccess: () => {
@@ -53,6 +55,7 @@ export function AddTaskForm({ projectId }: Props) {
           setPlanDocs(false);
           setPlanTests(false);
           setSkipReview(false);
+          setUseSubagents(true);
           setIsOpen(false);
         },
         onError: (error) => {
@@ -216,18 +219,34 @@ export function AddTaskForm({ projectId }: Props) {
           )}
         </div>
       )}
-      <label className="flex items-start gap-2 text-xs text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={skipReview}
-          onChange={(e) => setSkipReview(e.target.checked)}
-          className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
-        />
-        <span>
-          <span className="font-medium text-foreground">Skip review</span>
-          {" - After implementation, move directly to done without code review."}
-        </span>
-      </label>
+      <div className="space-y-1">
+        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={skipReview}
+            onChange={(e) => setSkipReview(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
+          />
+          <span>
+            <span className="font-medium text-foreground">Skip review</span>
+            {" - After implementation, move directly to done without code review."}
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={useSubagents}
+            onChange={(e) => setUseSubagents(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
+          />
+          <span>
+            <span className="font-medium text-foreground">Use subagents</span>
+            {
+              " - Run via custom subagents (plan-coordinator, implement-coordinator, sidecars). Disable to use aif-* skills directly."
+            }
+          </span>
+        </label>
+      </div>
       <div className="flex gap-2 pt-1">
         <Button type="submit" size="sm" disabled={!title.trim() || createTask.isPending}>
           {createTask.isPending ? "Adding..." : "Add"}
@@ -248,6 +267,7 @@ export function AddTaskForm({ projectId }: Props) {
             setPlanDocs(false);
             setPlanTests(false);
             setSkipReview(false);
+            setUseSubagents(true);
           }}
         >
           <X className="h-4 w-4" />

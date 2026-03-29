@@ -15,6 +15,7 @@ function makeTask(status: Task["status"]): Task {
     planDocs: false,
     planTests: false,
     skipReview: false,
+    useSubagents: true,
     status,
     priority: 0,
     position: 1000,

@@ -37,6 +37,7 @@ export function Board({ projectId, onTaskClick, density, viewMode = "kanban" }: 
   const { data: tasks, isLoading } = useTasks(projectId);
   const isCompact = density === "compact";
   const [activeFilters, setActiveFilters] = useState<QuickFilter[]>([]);
+  const [activeRoadmapAliases, setActiveRoadmapAliases] = useState<string[]>([]);
   const [listQuery, setListQuery] = useState(() => {
     return readStorage(STORAGE_KEYS.LIST_QUERY) ?? "";
   });
@@ -59,10 +60,31 @@ export function Board({ projectId, onTaskClick, density, viewMode = "kanban" }: 
   }, [listSort]);
 
   const toggleFilter = (filter: QuickFilter) => {
-    setActiveFilters((prev) =>
-      prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter],
+    setActiveFilters((prev) => {
+      const next = prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter];
+      if (filter === "roadmap" && next.includes("roadmap") === false) {
+        setActiveRoadmapAliases([]);
+      }
+      return next;
+    });
+  };
+
+  const toggleRoadmapAlias = (alias: string) => {
+    setActiveRoadmapAliases((prev) =>
+      prev.includes(alias) ? prev.filter((a) => a !== alias) : [...prev, alias],
     );
   };
+
+  const roadmapAliases = useMemo(() => {
+    const all = tasks ?? [];
+    const aliases = new Set<string>();
+    for (const task of all) {
+      if (task.tags?.includes("roadmap") && task.roadmapAlias) {
+        aliases.add(task.roadmapAlias);
+      }
+    }
+    return [...aliases].sort();
+  }, [tasks]);
 
   const filteredTasks = useMemo(() => {
     const all = tasks ?? [];
@@ -76,11 +98,17 @@ export function Board({ projectId, onTaskClick, density, viewMode = "kanban" }: 
         if (updatedTs < oneDayAgo) return false;
       }
       if (activeFilters.includes("no_plan") && (task.plan?.trim()?.length ?? 0) > 0) return false;
-      if (activeFilters.includes("roadmap") && (!task.tags || !task.tags.includes("roadmap")))
-        return false;
+      if (activeFilters.includes("roadmap")) {
+        if (!task.tags || !task.tags.includes("roadmap")) return false;
+        if (
+          activeRoadmapAliases.length > 0 &&
+          !activeRoadmapAliases.includes(task.roadmapAlias ?? "")
+        )
+          return false;
+      }
       return true;
     });
-  }, [activeFilters, tasks]);
+  }, [activeFilters, activeRoadmapAliases, tasks]);
 
   const tasksByStatus = useMemo(() => {
     const grouped: Record<TaskStatus, Task[]> = {
@@ -202,12 +230,55 @@ export function Board({ projectId, onTaskClick, density, viewMode = "kanban" }: 
             size="sm"
             variant="ghost"
             className="ml-auto"
-            onClick={() => setActiveFilters([])}
+            onClick={() => {
+              setActiveFilters([]);
+              setActiveRoadmapAliases([]);
+            }}
           >
             clear filters
           </Button>
         )}
       </div>
+
+      {activeFilters.includes("roadmap") && roadmapAliases.length > 0 && (
+        <div
+          data-testid="roadmap-alias-filters"
+          className={`-mt-2 mb-4 flex flex-wrap items-center gap-2 border border-t-0 border-border bg-card/35 ${isCompact ? "px-2 py-1.5" : "px-3 py-2"}`}
+        >
+          <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+            Roadmap
+          </span>
+          {roadmapAliases.map((alias) => {
+            const active = activeRoadmapAliases.includes(alias);
+            return (
+              <button
+                key={alias}
+                type="button"
+                onClick={() => toggleRoadmapAlias(alias)}
+                className={`border font-mono transition-colors ${
+                  isCompact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
+                } ${
+                  active
+                    ? "border-violet-500/45 bg-violet-500/15 text-violet-400"
+                    : "border-border bg-background/45 text-muted-foreground hover:bg-background"
+                }`}
+              >
+                {alias}
+              </button>
+            );
+          })}
+          {activeRoadmapAliases.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-[11px]"
+              onClick={() => setActiveRoadmapAliases([])}
+            >
+              all roadmaps
+            </Button>
+          )}
+        </div>
+      )}
 
       {filteredTasks.length === 0 && (
         <div className="mb-4 border border-dashed border-border bg-card/40 p-6 text-center">
