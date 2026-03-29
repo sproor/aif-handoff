@@ -127,7 +127,7 @@ export function useTaskDetailActions(task: Task | undefined, onClose: () => void
       );
       if (planChangeMode === "fast_fix") {
         setPlanChangeSuccess(
-          "Fast fix applied. Plan updated in task and sync to .ai-factory/PLAN.md attempted.",
+          `Fast fix applied. Plan updated in task and sync to ${task.planPath || ".ai-factory/PLAN.md"} attempted.`,
         );
       } else {
         setPlanChangeSuccess(null);
@@ -250,6 +250,22 @@ export function useTaskDetailActions(task: Task | undefined, onClose: () => void
     });
   };
 
+  // --- Approve done confirm ---
+  const [showApproveDoneConfirm, setShowApproveDoneConfirm] = useState(false);
+  const [deletePlanOnApprove, setDeletePlanOnApprove] = useState(false);
+
+  const handleApproveDone = () => {
+    if (!task) return;
+    taskEvent.mutate({
+      id: task.id,
+      event: "approve_done",
+      deletePlanFile: deletePlanOnApprove,
+    });
+    setShowApproveDoneConfirm(false);
+    setDeletePlanOnApprove(false);
+    onClose();
+  };
+
   // --- Action button dispatch ---
   const handleActionClick = (action: { event?: TaskEvent; actionType?: string }) => {
     if (action.actionType === "open_replanning") {
@@ -267,6 +283,10 @@ export function useTaskDetailActions(task: Task | undefined, onClose: () => void
     if (action.event) {
       if (action.event === "start_ai") {
         void handleStartAiClick();
+        return;
+      }
+      if (action.event === "approve_done") {
+        setShowApproveDoneConfirm(true);
         return;
       }
       taskEvent.mutate({ id: task!.id, event: action.event });
@@ -311,6 +331,12 @@ export function useTaskDetailActions(task: Task | undefined, onClose: () => void
     // attachments
     handleTaskAttachmentsSelected,
     handleRemoveTaskAttachment,
+    // approve done
+    showApproveDoneConfirm,
+    setShowApproveDoneConfirm,
+    deletePlanOnApprove,
+    setDeletePlanOnApprove,
+    handleApproveDone,
     // action buttons
     handleActionClick,
     // update task (for description save)

@@ -17,7 +17,12 @@ import {
   updateTask,
 } from "@aif/data";
 
-export function updateTaskPlan(taskId: string, planText: string | null, isFix: boolean): void {
+export function updateTaskPlan(
+  taskId: string,
+  planText: string | null,
+  isFix: boolean,
+  planPath?: string,
+): void {
   const project = findProjectByTaskId(taskId);
   if (!project) throw new Error("Project not found for task");
 
@@ -26,6 +31,7 @@ export function updateTaskPlan(taskId: string, planText: string | null, isFix: b
     planText,
     projectRoot: project.rootPath,
     isFix,
+    planPath,
     updatedAt: new Date().toISOString(),
   });
 }
@@ -40,6 +46,7 @@ export function getTaskPlanFileStatus(taskId: string) {
   const canonicalPlanPath = getCanonicalPlanPath({
     projectRoot: project.rootPath,
     isFix: task.isFix,
+    planPath: task.planPath,
   });
 
   return {
@@ -58,6 +65,7 @@ export function syncTaskPlanFromFile(taskId: string): { synced: boolean } | null
   const canonicalPlanPath = getCanonicalPlanPath({
     projectRoot: project.rootPath,
     isFix: task.isFix,
+    planPath: task.planPath,
   });
   if (!existsSync(canonicalPlanPath)) {
     return { synced: false };
@@ -71,6 +79,7 @@ export function syncTaskPlanFromFile(taskId: string): { synced: boolean } | null
     planText: normalizedPlan,
     projectRoot: project.rootPath,
     isFix: task.isFix,
+    planPath: task.planPath,
     updatedAt: new Date().toISOString(),
   });
 

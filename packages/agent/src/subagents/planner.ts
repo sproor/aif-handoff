@@ -14,23 +14,31 @@ function extractPlanPathFromResult(resultText: string): string | null {
   return match[1].trim().replace(/^["']|["']$/g, "");
 }
 
-function readPlanFromDisk(projectRoot: string, resultText: string): string | null {
-  const candidates = new Set<string>([
-    resolve(projectRoot, ".ai-factory/PLAN.md"),
-    resolve(projectRoot, ".ai-factory/FIX_PLAN.md"),
-  ]);
+function readPlanFromDisk(
+  projectRoot: string,
+  resultText: string,
+  isFix: boolean,
+  customPlanPath?: string,
+): string | null {
+  const planPath = resolve(
+    projectRoot,
+    isFix ? ".ai-factory/FIX_PLAN.md" : customPlanPath || ".ai-factory/PLAN.md",
+  );
+
+  if (existsSync(planPath)) {
+    const content = readFileSync(planPath, "utf8").trim();
+    if (content.length > 0) return content;
+  }
 
   const pathFromResult = extractPlanPathFromResult(resultText);
   if (pathFromResult) {
-    candidates.add(
-      pathFromResult.startsWith("/") ? pathFromResult : resolve(projectRoot, pathFromResult),
-    );
-  }
-
-  for (const candidate of candidates) {
-    if (!existsSync(candidate)) continue;
-    const content = readFileSync(candidate, "utf8").trim();
-    if (content.length > 0) return content;
+    const resolved = pathFromResult.startsWith("/")
+      ? pathFromResult
+      : resolve(projectRoot, pathFromResult);
+    if (existsSync(resolved)) {
+      const content = readFileSync(resolved, "utf8").trim();
+      if (content.length > 0) return content;
+    }
   }
 
   return null;
@@ -100,11 +108,19 @@ export async function runPlanner(taskId: string, projectRoot: string): Promise<v
 
   const taskAttachmentsForPrompt = formatAttachmentsForPrompt(task.attachments);
   const commentsForPrompt = formatCommentsForPrompt(comments);
+
+  const plannerMode = task.plannerMode || "full";
+  const planPath = task.planPath || ".ai-factory/PLAN.md";
+  const planDocs = task.planDocs ? "yes" : "no";
+  const planTests = task.planTests ? "yes" : "no";
+  const optionsLine = `Mode: ${plannerMode}, tests: ${planTests}, docs: ${planDocs}, max_iterations: 3.`;
+
   const prompt = task.isFix
     ? buildFixCommandText(task.title, task.description)
     : isReplanning
       ? `Refine and improve the existing plan for the following task.
-Mode: fast, tests: no, docs: no, max_iterations: 3.
+${optionsLine}
+Plan file: @${planPath}
 
 Title: ${task.title}
 Description: ${task.description}
@@ -116,9 +132,11 @@ ${commentsForPrompt}
 Previous plan:
 ${task.plan ?? "(no previous plan)"}
 
-Iterate on the plan using plan-polisher: critique the existing plan, address the feedback above, and refine until implementation-ready.`
+Iterate on the plan using plan-polisher: critique the existing plan, address the feedback above, and refine until implementation-ready.
+IMPORTANT: Always write the plan to ${planPath} — do not use any other path.`
       : `Plan the implementation for the following task.
-Mode: fast, tests: no, docs: no, max_iterations: 3.
+${optionsLine}
+Plan file: @${planPath}
 
 Title: ${task.title}
 Description: ${task.description}
@@ -127,7 +145,8 @@ ${taskAttachmentsForPrompt}
 User comments and replanning feedback:
 ${commentsForPrompt}
 
-Create a concrete, implementation-ready plan using iterative refinement via plan-polisher.`;
+Create a concrete, implementation-ready plan using iterative refinement via plan-polisher.
+IMPORTANT: Always write the plan to ${planPath} — do not use any other path.`;
 
   const { resultText: rawResult } = await executeSubagentQuery({
     taskId,
@@ -138,7 +157,7 @@ Create a concrete, implementation-ready plan using iterative refinement via plan
     agent: task.isFix ? undefined : AGENT_NAME,
   });
 
-  const diskPlan = readPlanFromDisk(projectRoot, rawResult);
+  const diskPlan = readPlanFromDisk(projectRoot, rawResult, !!task.isFix, planPath);
   const resultText = diskPlan ?? normalizePlannerResult(rawResult);
 
   persistTaskPlanForTask({
@@ -146,6 +165,7 @@ Create a concrete, implementation-ready plan using iterative refinement via plan
     planText: resultText,
     projectRoot,
     isFix: task.isFix,
+    planPath,
     updatedAt: new Date().toISOString(),
   });
 

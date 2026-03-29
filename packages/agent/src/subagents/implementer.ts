@@ -49,8 +49,14 @@ function isBlockedImplementationResult(resultText: string): boolean {
   );
 }
 
-function readCanonicalPlan(task: { isFix: boolean }, projectRoot: string): string | null {
-  const preferredPath = resolve(projectRoot, task.isFix ? FIX_PLAN_PATH : PLAN_PATH);
+function readCanonicalPlan(
+  task: { isFix: boolean; planPath: string },
+  projectRoot: string,
+): string | null {
+  const preferredPath = resolve(
+    projectRoot,
+    task.isFix ? FIX_PLAN_PATH : task.planPath || PLAN_PATH,
+  );
   if (existsSync(preferredPath)) {
     const content = readFileSync(preferredPath, "utf8").trim();
     if (content.length > 0) return content;
@@ -182,11 +188,14 @@ export async function runImplementer(taskId: string, projectRoot: string): Promi
   const implementerBudget = project?.implementerMaxBudgetUsd ?? null;
   const canonicalPlan = readCanonicalPlan(task, projectRoot);
   const selectedPlan = canonicalPlan ?? task.plan;
+  const effectivePlanPath = task.isFix ? FIX_PLAN_PATH : task.planPath || PLAN_PATH;
   const planSection = task.isFix
-    ? `Primary plan file (use first): @${FIX_PLAN_PATH}
+    ? `Primary plan file (use first): @${effectivePlanPath}
 Fallback in-task plan copy:
 ${selectedPlan ?? "No in-task plan copy is available."}`
-    : `${selectedPlan ?? "No plan available — use your best judgment."}`;
+    : `Primary plan file: @${effectivePlanPath}
+Plan content:
+${selectedPlan ?? "No plan available — use your best judgment."}`;
   const layerComputation = selectedPlan
     ? computePendingPlanLayers(selectedPlan)
     : { tasks: [], layers: [] };
@@ -213,6 +222,7 @@ ${selectedPlan ?? "No in-task plan copy is available."}`
       planText: selectedPlan,
       projectRoot,
       isFix: task.isFix,
+      planPath: task.planPath,
       updatedAt: nowIso,
     });
     setTaskFields(taskId, {
@@ -258,7 +268,8 @@ Execution rules:
 - Respect the precomputed layers above as authoritative dependency order.
 - Any layer with multiple tasks MUST be executed via parallel \`implement-worker\` dispatch.
 - Do not collapse parallel layers into sequential execution unless blocked by explicit conflicts.
-- Run quality sidecars (review, security, best-practices) and verify the merged result.`;
+- Run quality sidecars (review, security, best-practices) and verify the merged result.
+- IMPORTANT: The plan file is ${effectivePlanPath}. Always read from and annotate this exact file — do not create plan files at other paths.`;
 
   let implementWorkerStarts = 0;
   const stderrCollector = createClaudeStderrCollector();
@@ -366,6 +377,7 @@ Execution rules:
       planText: syncedPlan,
       projectRoot,
       isFix: task.isFix,
+      planPath: task.planPath,
       updatedAt: nowIso,
     });
   }

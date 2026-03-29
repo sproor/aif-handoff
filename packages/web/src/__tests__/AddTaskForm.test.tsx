@@ -33,7 +33,7 @@ describe("AddTaskForm", () => {
         autoMode: true,
         isFix: false,
       }),
-      expect.any(Object)
+      expect.any(Object),
     );
   });
 
@@ -55,7 +55,7 @@ describe("AddTaskForm", () => {
         autoMode: false,
         isFix: false,
       }),
-      expect.any(Object)
+      expect.any(Object),
     );
   });
 
@@ -75,7 +75,7 @@ describe("AddTaskForm", () => {
         title: "Fix issue",
         isFix: true,
       }),
-      expect.any(Object)
+      expect.any(Object),
     );
   });
 
@@ -90,7 +90,8 @@ describe("AddTaskForm", () => {
       target: { value: "Temp text" },
     });
 
-    const cancelButton = container.querySelector('button[type="button"]') as HTMLButtonElement;
+    const buttons = container.querySelectorAll('button[type="button"]');
+    const cancelButton = buttons[buttons.length - 1] as HTMLButtonElement;
     fireEvent.click(cancelButton);
 
     expect(screen.getByText("Add task")).toBeDefined();

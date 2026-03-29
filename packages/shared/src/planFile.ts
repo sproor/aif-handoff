@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 interface CanonicalPlanInput {
   projectRoot: string;
   isFix: boolean;
+  planPath?: string;
 }
 
 interface SyncCanonicalPlanInput extends CanonicalPlanInput {
@@ -11,10 +12,10 @@ interface SyncCanonicalPlanInput extends CanonicalPlanInput {
 }
 
 export function getCanonicalPlanPath(input: CanonicalPlanInput): string {
-  return resolve(
-    input.projectRoot,
-    input.isFix ? ".ai-factory/FIX_PLAN.md" : ".ai-factory/PLAN.md",
-  );
+  if (input.isFix) {
+    return resolve(input.projectRoot, ".ai-factory/FIX_PLAN.md");
+  }
+  return resolve(input.projectRoot, input.planPath || ".ai-factory/PLAN.md");
 }
 
 export function syncPlanTextToCanonicalFile(input: SyncCanonicalPlanInput): string {

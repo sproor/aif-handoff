@@ -50,6 +50,10 @@ export interface Task {
   attachments?: TaskCommentAttachment[];
   autoMode: boolean;
   isFix: boolean;
+  plannerMode: string;
+  planPath: string;
+  planDocs: boolean;
+  planTests: boolean;
   status: TaskStatus;
   priority: number;
   position: number;
@@ -96,6 +100,10 @@ export interface CreateTaskInput {
   priority?: number;
   autoMode?: boolean;
   isFix?: boolean;
+  plannerMode?: string;
+  planPath?: string;
+  planDocs?: boolean;
+  planTests?: boolean;
   roadmapAlias?: string;
   tags?: string[];
 }
@@ -108,6 +116,10 @@ export interface UpdateTaskInput {
   priority?: number;
   autoMode?: boolean;
   isFix?: boolean;
+  plannerMode?: string;
+  planPath?: string;
+  planDocs?: boolean;
+  planTests?: boolean;
   plan?: string | null;
   implementationLog?: string | null;
   reviewComments?: string | null;
@@ -141,6 +153,7 @@ export type TaskEvent = (typeof TASK_EVENTS)[number];
 /** POST /tasks/:id/events body */
 export interface TaskEventInput {
   event: TaskEvent;
+  deletePlanFile?: boolean;
 }
 
 /** PATCH /tasks/:id/position body */

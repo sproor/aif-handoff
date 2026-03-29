@@ -245,7 +245,7 @@ tasksRouter.put("/:id", zValidator("json", updateTaskSchema), async (c) => {
   const hasPlanUpdate = Object.prototype.hasOwnProperty.call(body, "plan");
   if (hasPlanUpdate) {
     try {
-      updateTaskPlan(id, plan ?? null, existing.isFix);
+      updateTaskPlan(id, plan ?? null, existing.isFix, existing.planPath);
     } catch {
       return c.json({ error: "Project not found for task" }, 404);
     }
@@ -310,7 +310,7 @@ tasksRouter.delete("/:id", (c) => {
 // POST /tasks/:id/events — apply a human action through state machine
 tasksRouter.post("/:id/events", zValidator("json", taskEventSchema), async (c) => {
   const { id } = c.req.param();
-  const { event } = c.req.valid("json");
+  const { event, deletePlanFile } = c.req.valid("json");
   const existing = findTaskById(id);
   if (!existing) {
     return c.json({ error: "Task not found" }, 404);
@@ -319,6 +319,7 @@ tasksRouter.post("/:id/events", zValidator("json", taskEventSchema), async (c) =
     const handled = await handleTaskEvent({
       taskId: id,
       event,
+      deletePlanFile,
     });
     if (!handled.ok) {
       return c.json({ error: handled.error }, handled.status);

@@ -10,17 +10,20 @@ interface PersistTaskPlanInput {
   updatedAt?: string;
   projectRoot?: string;
   isFix?: boolean;
+  planPath?: string;
 }
 
 export function persistTaskPlan(input: PersistTaskPlanInput): { updatedAt: string } {
   let projectRoot = input.projectRoot;
   let isFix = input.isFix;
+  let planPath = input.planPath;
 
   if (!projectRoot || isFix == null) {
     const task = input.db
       .select({
         projectId: tasks.projectId,
         isFix: tasks.isFix,
+        planPath: tasks.planPath,
       })
       .from(tasks)
       .where(eq(tasks.id, input.taskId))
@@ -44,11 +47,13 @@ export function persistTaskPlan(input: PersistTaskPlanInput): { updatedAt: strin
 
     projectRoot = project.rootPath;
     isFix = task.isFix;
+    planPath = planPath ?? task.planPath;
   }
 
   syncPlanTextToCanonicalFile({
     projectRoot,
     isFix,
+    planPath,
     planText: input.planText,
   });
 

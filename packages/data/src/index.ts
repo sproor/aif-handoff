@@ -28,6 +28,10 @@ export type TaskFieldsUpdate = {
   priority?: number;
   autoMode?: boolean;
   isFix?: boolean;
+  plannerMode?: string;
+  planPath?: string;
+  planDocs?: boolean;
+  planTests?: boolean;
   implementationLog?: string | null;
   reviewComments?: string | null;
   agentActivityLog?: string | null;
@@ -102,6 +106,10 @@ export function createTask(input: {
   priority?: number;
   autoMode?: boolean;
   isFix?: boolean;
+  plannerMode?: string;
+  planPath?: string;
+  planDocs?: boolean;
+  planTests?: boolean;
   roadmapAlias?: string;
   tags?: string[];
 }): TaskRow | undefined {
@@ -119,6 +127,10 @@ export function createTask(input: {
       priority: input.priority,
       autoMode: input.autoMode,
       isFix: input.isFix,
+      plannerMode: input.plannerMode,
+      planPath: input.planPath,
+      planDocs: input.planDocs,
+      planTests: input.planTests,
       roadmapAlias: input.roadmapAlias ?? null,
       tags: JSON.stringify(input.tags ?? []),
       reworkRequested: false,
@@ -287,6 +299,7 @@ export function persistTaskPlanForTask(input: {
   updatedAt?: string;
   projectRoot?: string;
   isFix?: boolean;
+  planPath?: string;
 }): { updatedAt: string } {
   return persistTaskPlan({
     db: getDb(),
@@ -295,6 +308,7 @@ export function persistTaskPlanForTask(input: {
     updatedAt: input.updatedAt,
     projectRoot: input.projectRoot,
     isFix: input.isFix,
+    planPath: input.planPath,
   });
 }
 

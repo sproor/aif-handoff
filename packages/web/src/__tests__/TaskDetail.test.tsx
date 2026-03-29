@@ -11,6 +11,10 @@ const mockTask: Task = {
   attachments: [],
   autoMode: true,
   isFix: false,
+  plannerMode: "full",
+  planPath: ".ai-factory/PLAN.md",
+  planDocs: false,
+  planTests: false,
   reworkRequested: false,
   lastHeartbeatAt: null,
   roadmapAlias: null,
@@ -35,6 +39,13 @@ const mockDoneTask: Task = {
   id: "detail-done",
   status: "done",
   title: "Done Task",
+};
+
+const mockDoneFixTask: Task = {
+  ...mockDoneTask,
+  id: "detail-done-fix",
+  isFix: true,
+  title: "Done Fix Task",
 };
 
 const mockBacklogTask: Task = {
@@ -112,19 +123,21 @@ vi.mock("@/hooks/useTasks", () => ({
         ? mockTask
         : id === "detail-done"
           ? mockDoneTask
-          : id === "detail-backlog"
-            ? mockBacklogTask
-            : id === "detail-blocked"
-              ? mockBlockedTask
-              : id === "detail-plan-ready-manual"
-                ? mockPlanReadyManualTask
-                : id === "detail-review"
-                  ? mockReviewTask
-                  : id === "detail-with-attachment"
-                    ? mockTaskWithAttachment
-                    : id === "detail-no-plan-no-log"
-                      ? mockTaskNoPlanNoLog
-                      : null,
+          : id === "detail-done-fix"
+            ? mockDoneFixTask
+            : id === "detail-backlog"
+              ? mockBacklogTask
+              : id === "detail-blocked"
+                ? mockBlockedTask
+                : id === "detail-plan-ready-manual"
+                  ? mockPlanReadyManualTask
+                  : id === "detail-review"
+                    ? mockReviewTask
+                    : id === "detail-with-attachment"
+                      ? mockTaskWithAttachment
+                      : id === "detail-no-plan-no-log"
+                        ? mockTaskNoPlanNoLog
+                        : null,
   }),
   useUpdateTask: () => ({ mutate: mutateUpdateTask }),
   useDeleteTask: () => ({ mutate: mutateDeleteTask }),
@@ -243,6 +256,39 @@ describe("TaskDetail", () => {
     render(<TaskDetail taskId="detail-done" onClose={vi.fn()} />, { wrapper: Wrapper });
     expect(screen.getByText("Approve")).toBeDefined();
     expect(screen.getByText("Request changes")).toBeDefined();
+  });
+
+  it("should confirm approve_done and send deletePlanFile=false by default", () => {
+    const onClose = vi.fn();
+    render(<TaskDetail taskId="detail-done" onClose={onClose} />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(screen.getByText("Approve done task?")).toBeDefined();
+    fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[1]);
+
+    expect(mutateTaskEvent).toHaveBeenCalledWith({
+      id: "detail-done",
+      event: "approve_done",
+      deletePlanFile: false,
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("should send deletePlanFile=true when checkbox is selected in approve confirmation", () => {
+    const onClose = vi.fn();
+    render(<TaskDetail taskId="detail-done-fix" onClose={onClose} />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(screen.getByText("Delete plan file (FIX_PLAN.md)")).toBeDefined();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[1]);
+
+    expect(mutateTaskEvent).toHaveBeenCalledWith({
+      id: "detail-done-fix",
+      event: "approve_done",
+      deletePlanFile: true,
+    });
+    expect(onClose).toHaveBeenCalled();
   });
 
   it("should submit request changes with comment for done task", async () => {
