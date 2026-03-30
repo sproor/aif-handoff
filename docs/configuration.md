@@ -34,7 +34,7 @@ Node packages (`@aif/api`, `@aif/agent`, `@aif/data`, `@aif/shared`) auto-load e
 | `ACTIVITY_LOG_BATCH_MAX_AGE_MS`    | number  | `5000`              | Maximum age (ms) of buffered entries before auto-flush in batch mode                                                                                                                                                                                                    |
 | `ACTIVITY_LOG_QUEUE_LIMIT`         | number  | `500`               | Hard queue limit to prevent unbounded memory growth in batch mode                                                                                                                                                                                                       |
 | `AGENT_WAKE_ENABLED`               | boolean | `true`              | Enable event-driven coordinator wake via API WebSocket; set to `false` for polling-only mode                                                                                                                                                                            |
-| `AGENT_BYPASS_PERMISSIONS`         | boolean | `false`             | Bypass all Claude permission checks for subagents. When `false`, configure permissions via `.claude/settings.json` allow rules                                                                                                                                          |
+| `AGENT_BYPASS_PERMISSIONS`         | boolean | `true`              | Bypass all Claude permission checks for subagents. When `false`, configure permissions via `.claude/settings.json` allow rules                                                                                                                                          |
 | `AGENT_USE_SUBAGENTS`              | boolean | `true`              | Default for the per-task "Use subagents" setting. Each task can override this in Planner settings. `true`: custom agents (`plan-coordinator`, `implement-coordinator`, sidecars). `false`: `aif-plan`, `aif-implement`, `aif-review`, `aif-security-checklist` directly |
 
 Environment validation is handled by Zod in `packages/shared/src/env.ts`. The application will fail to start with a descriptive error if required variables are invalid.
@@ -137,7 +137,7 @@ Two approaches:
 
 ### Option 1: Bypass all permissions (simple)
 
-Set `AGENT_BYPASS_PERMISSIONS=true` in `.env`. All tool calls are auto-approved without prompting. Convenient for trusted environments and local development.
+`AGENT_BYPASS_PERMISSIONS=true` is the default. All tool calls are auto-approved without prompting. Convenient for trusted environments and local development.
 
 ```
 AGENT_BYPASS_PERMISSIONS=true
@@ -145,7 +145,7 @@ AGENT_BYPASS_PERMISSIONS=true
 
 ### Option 2: Configure allow rules (granular)
 
-Leave `AGENT_BYPASS_PERMISSIONS=false` (default) and add needed commands to `.claude/settings.json` or `.claude/settings.local.json`:
+Set `AGENT_BYPASS_PERMISSIONS=false` and add needed commands to `.claude/settings.json` or `.claude/settings.local.json`:
 
 ```json
 {

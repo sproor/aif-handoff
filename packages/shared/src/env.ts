@@ -66,7 +66,7 @@ const envSchema = z.object({
       }
       return value;
     }, z.boolean())
-    .default(false),
+    .default(true),
   AGENT_MAX_REVIEW_ITERATIONS: z.coerce.number().min(1).default(3),
   AGENT_USE_SUBAGENTS: z
     .preprocess((value) => {
