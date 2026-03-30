@@ -115,9 +115,14 @@ function AppContent() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      if ((event.metaKey || event.ctrlKey) && event.code === "KeyK") {
         event.preventDefault();
         setCommandOpen((prev) => !prev);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.code === "KeyN") {
+        event.preventDefault();
+        // Dispatch custom event to trigger task creation
+        window.dispatchEvent(new CustomEvent("task:create"));
       }
     };
 

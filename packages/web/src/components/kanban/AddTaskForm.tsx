@@ -28,6 +28,30 @@ export function AddTaskForm({ projectId }: Props) {
   const [maxReviewIterations, setMaxReviewIterations] = useState(3);
   const createTask = useCreateTask();
 
+  // Listen for global task:create event (Ctrl+N)
+  useEffect(() => {
+    const handleCreateTask = () => {
+      setIsOpen(true);
+      // Focus will be handled by autoFocus on the input
+    };
+    window.addEventListener("task:create", handleCreateTask);
+    return () => window.removeEventListener("task:create", handleCreateTask);
+  }, []);
+
+  // Close form on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
   useEffect(() => {
     api
       .getSettings()
@@ -92,9 +116,11 @@ export function AddTaskForm({ projectId }: Props) {
         size="sm"
         className="w-full justify-center gap-1 border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
         onClick={() => setIsOpen(true)}
+        type="button"
       >
         <Plus className="h-4 w-4" />
         Add task
+        <span className="ml-auto font-mono text-[10px] text-muted-foreground">Ctrl+N</span>
       </Button>
     );
   }

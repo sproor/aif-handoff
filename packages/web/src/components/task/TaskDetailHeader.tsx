@@ -117,9 +117,6 @@ export function TaskDetailHeader({
                 {tag}
               </Badge>
             ))}
-          <span className="ml-auto max-w-[52%] truncate font-mono text-[10px] text-muted-foreground">
-            {task.id}
-          </span>
         </div>
         <div className="mb-2 flex flex-wrap gap-1.5">
           <Badge variant="outline" className="text-[10px]">

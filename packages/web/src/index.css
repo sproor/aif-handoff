@@ -107,6 +107,12 @@ h4 {
   font-family: "IBM Plex Mono", monospace;
 }
 
+/* Ensure interactive elements have pointer cursor */
+button,
+a {
+  cursor: pointer;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
