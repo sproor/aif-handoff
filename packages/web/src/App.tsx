@@ -59,9 +59,26 @@ function AppContent() {
     writeStorage(STORAGE_KEYS.VIEW_MODE, viewMode);
   }, [viewMode]);
 
+  // Restore state from URL or localStorage on initial load
   useEffect(() => {
     if (!projects?.length) return;
     if (project) return;
+
+    const match = window.location.pathname.match(/^\/project\/([^/]+)(?:\/task\/([^/]+))?/);
+    if (match) {
+      const urlProjectId = match[1];
+      const urlTaskId = match[2] ?? null;
+      const found = projects.find((p) => p.id === urlProjectId);
+      if (found) {
+        queueMicrotask(() => {
+          setProject(found);
+          writeStorage(STORAGE_KEYS.SELECTED_PROJECT, found.id);
+          if (urlTaskId) setSelectedTaskId(urlTaskId);
+        });
+        return;
+      }
+    }
+
     const savedId = readStorage(STORAGE_KEYS.SELECTED_PROJECT);
     if (savedId) {
       const found = projects.find((p) => p.id === savedId);
@@ -72,6 +89,26 @@ function AppContent() {
       }
     }
   }, [projects, project]);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onPopState = () => {
+      const match = window.location.pathname.match(/^\/project\/([^/]+)(?:\/task\/([^/]+))?/);
+      if (match) {
+        const urlProjectId = match[1];
+        const urlTaskId = match[2] ?? null;
+        const found = projects?.find((p) => p.id === urlProjectId);
+        if (found) {
+          setProject(found);
+          setSelectedTaskId(urlTaskId);
+          return;
+        }
+      }
+      setSelectedTaskId(null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [projects]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -112,11 +149,18 @@ function AppContent() {
   const handleSelectProject = useCallback((p: Project) => {
     setProject(p);
     writeStorage(STORAGE_KEYS.SELECTED_PROJECT, p.id);
+    window.history.pushState(null, "", `/project/${p.id}`);
   }, []);
 
-  const handleTaskOpen = useCallback((taskId: string) => {
-    setSelectedTaskId(taskId);
-  }, []);
+  const handleTaskOpen = useCallback(
+    (taskId: string) => {
+      setSelectedTaskId(taskId);
+      if (project) {
+        window.history.pushState(null, "", `/project/${project.id}/task/${taskId}`);
+      }
+    },
+    [project],
+  );
 
   const toggleDensity = useCallback(() => {
     setDensity((prev) => (prev === "comfortable" ? "compact" : "comfortable"));
@@ -131,6 +175,7 @@ function AppContent() {
           setProject(null);
           setSelectedTaskId(null);
           removeStorage(STORAGE_KEYS.SELECTED_PROJECT);
+          window.history.pushState(null, "", "/");
         }}
         onOpenCommandPalette={() => setCommandOpen(true)}
         density={density}
@@ -176,7 +221,17 @@ function AppContent() {
         )}
       </main>
 
-      <TaskDetail taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
+      <TaskDetail
+        taskId={selectedTaskId}
+        onClose={() => {
+          setSelectedTaskId(null);
+          if (project) {
+            window.history.pushState(null, "", `/project/${project.id}`);
+          } else {
+            window.history.pushState(null, "", "/");
+          }
+        }}
+      />
 
       <CommandPalette
         open={commandOpen}
