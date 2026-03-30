@@ -3,10 +3,13 @@ import { createNodeWebSocket } from "@hono/node-ws";
 import type { WsEvent } from "@aif/shared";
 import { logger } from "@aif/shared";
 import type { WebSocket } from "ws";
+import { randomUUID } from "node:crypto";
 
 const log = logger("ws");
 
 let clients: Set<WebSocket> = new Set();
+const clientMap: Map<string, WebSocket> = new Map();
+const socketToClientId: Map<WebSocket, string> = new Map();
 let injectWebSocketFn: ReturnType<typeof createNodeWebSocket>["injectWebSocket"];
 
 function getRawWebSocket(ws: unknown): WebSocket | null {
@@ -26,14 +29,23 @@ export function setupWebSocket(app: Hono) {
       onOpen(_event: Event, ws: unknown) {
         const raw = getRawWebSocket(ws);
         if (!raw) return;
+        const clientId = randomUUID();
         clients.add(raw);
-        log.debug({ clientCount: clients.size }, "WebSocket client connected");
+        clientMap.set(clientId, raw);
+        socketToClientId.set(raw, clientId);
+        log.debug({ clientId, clientCount: clients.size }, "WebSocket client connected");
+        raw.send(JSON.stringify({ type: "ws:connected", payload: { clientId } }));
       },
       onClose(_event: Event, ws: unknown) {
         const raw = getRawWebSocket(ws);
         if (!raw) return;
+        const clientId = socketToClientId.get(raw);
         clients.delete(raw);
-        log.debug({ clientCount: clients.size }, "WebSocket client disconnected");
+        if (clientId) {
+          clientMap.delete(clientId);
+          socketToClientId.delete(raw);
+        }
+        log.debug({ clientId, clientCount: clients.size }, "WebSocket client disconnected");
       },
       onError(error: Event) {
         log.error({ error }, "WebSocket error");
@@ -46,6 +58,17 @@ export function setupWebSocket(app: Hono) {
 
 export function getInjectWebSocket() {
   return injectWebSocketFn;
+}
+
+export function sendToClient(clientId: string, event: WsEvent): boolean {
+  const client = clientMap.get(clientId);
+  if (!client || client.readyState !== client.OPEN) {
+    log.debug({ clientId, event: event.type }, "sendToClient: client not found or not open");
+    return false;
+  }
+  client.send(JSON.stringify(event));
+  log.debug({ clientId, event: event.type }, "Sent WS event to client");
+  return true;
 }
 
 export function broadcast(event: WsEvent): void {

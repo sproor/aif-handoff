@@ -57,26 +57,31 @@ body {
   background:
     radial-gradient(65% 45% at 50% -10%, rgb(16 185 129 / 13%) 0%, rgb(16 185 129 / 0%) 100%),
     linear-gradient(to right, rgb(255 255 255 / 2%) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 2%) 1px, transparent 1px),
-    var(--color-background);
-  background-size: auto, 28px 28px, 28px 28px, auto;
+    linear-gradient(to bottom, rgb(255 255 255 / 2%) 1px, transparent 1px), var(--color-background);
+  background-size:
+    auto,
+    28px 28px,
+    28px 28px,
+    auto;
 }
 
 :root.light body {
   background:
     radial-gradient(65% 45% at 50% -10%, rgb(15 118 110 / 10%) 0%, rgb(15 118 110 / 0%) 100%),
     linear-gradient(to right, rgb(15 23 42 / 6%) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(15 23 42 / 6%) 1px, transparent 1px),
-    var(--color-background);
+    linear-gradient(to bottom, rgb(15 23 42 / 6%) 1px, transparent 1px), var(--color-background);
 }
 
 .app-pattern-bg {
   background:
     radial-gradient(65% 45% at 50% -10%, rgb(16 185 129 / 13%) 0%, rgb(16 185 129 / 0%) 100%),
     linear-gradient(to right, rgb(255 255 255 / 2%) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 2%) 1px, transparent 1px),
-    var(--color-background);
-  background-size: auto, 28px 28px, 28px 28px, auto;
+    linear-gradient(to bottom, rgb(255 255 255 / 2%) 1px, transparent 1px), var(--color-background);
+  background-size:
+    auto,
+    28px 28px,
+    28px 28px,
+    auto;
 }
 
 :root.light .app-pattern-bg {
@@ -85,19 +90,21 @@ body {
     linear-gradient(to right, rgb(15 23 42 / 2.2%) 1px, transparent 1px),
     linear-gradient(to bottom, rgb(15 23 42 / 2.2%) 1px, transparent 1px),
     linear-gradient(to right, rgb(15 23 42 / 0.8%) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(15 23 42 / 0.8%) 1px, transparent 1px),
-    var(--color-background);
-  background-size: auto, 28px 28px, 28px 28px, 112px 112px, 112px 112px, auto;
+    linear-gradient(to bottom, rgb(15 23 42 / 0.8%) 1px, transparent 1px), var(--color-background);
+  background-size:
+    auto,
+    28px 28px,
+    28px 28px,
+    112px 112px,
+    112px 112px,
+    auto;
 }
 
 h1,
 h2,
 h3,
 h4 {
-  font-family:
-    "JetBrains Mono",
-    "IBM Plex Mono",
-    monospace;
+  font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
 }
 
 /* Custom scrollbar */
@@ -114,4 +121,41 @@ h4 {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted-foreground);
+}
+
+/* Chat bubble pulse-glow animation */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgb(16 185 129 / 40%),
+      0 4px 12px rgb(0 0 0 / 30%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px rgb(16 185 129 / 0%),
+      0 4px 12px rgb(0 0 0 / 30%);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+:root.light .animate-pulse-glow {
+  animation: pulse-glow-light 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow-light {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgb(15 118 110 / 35%),
+      0 4px 12px rgb(0 0 0 / 15%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px rgb(15 118 110 / 0%),
+      0 4px 12px rgb(0 0 0 / 15%);
+  }
 }

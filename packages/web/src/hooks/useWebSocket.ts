@@ -21,6 +21,13 @@ function hasIdPayload(value: unknown): value is { id: string } {
   return isRecord(value) && typeof value.id === "string";
 }
 
+/** Per-client WS identifier assigned by server on connect */
+let currentClientId: string | null = null;
+
+export function getWsClientId(): string | null {
+  return currentClientId;
+}
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const queryClient = useQueryClient();
@@ -60,20 +67,39 @@ export function useWebSocket() {
     };
 
     ws.onmessage = (event) => {
-      let data: WsEvent;
+      let raw: unknown;
       try {
-        data = JSON.parse(event.data) as WsEvent;
+        raw = JSON.parse(event.data);
       } catch (error) {
         console.debug("[ws] Failed to parse message:", error);
         return;
       }
 
-      if (!isRecord(data) || typeof data.type !== "string") {
+      if (!isRecord(raw) || typeof raw.type !== "string") {
         console.debug("[ws] Invalid event shape");
         return;
       }
 
-      console.debug("[ws] Event received:", data.type);
+      console.debug("[ws] Event received:", raw.type);
+
+      // Capture per-client WS identifier from server (not a WsEvent)
+      if (
+        raw.type === "ws:connected" &&
+        isRecord(raw.payload) &&
+        typeof (raw.payload as Record<string, unknown>).clientId === "string"
+      ) {
+        currentClientId = (raw.payload as Record<string, unknown>).clientId as string;
+        console.debug("[ws] Assigned clientId:", currentClientId);
+        return;
+      }
+
+      // Dispatch chat events as custom DOM events for the useChat hook
+      if (raw.type === "chat:token" || raw.type === "chat:done" || raw.type === "chat:error") {
+        window.dispatchEvent(new CustomEvent(raw.type, { detail: raw.payload }));
+        return;
+      }
+
+      const data = raw as unknown as WsEvent;
 
       if (data.type === "task:moved" && isTaskPayload(data.payload)) {
         const movedTask = data.payload;

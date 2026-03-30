@@ -99,3 +99,11 @@ export const roadmapGenerateSchema = z.object({
   roadmapAlias: z.string().min(1, "Roadmap alias is required").max(200),
   vision: z.string().max(10000).optional(),
 });
+
+export const chatRequestSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  message: z.string().min(1, "Message is required").max(50_000),
+  clientId: z.string().min(1, "Client ID is required"),
+  conversationId: z.string().optional(),
+  explore: z.boolean().default(false),
+});

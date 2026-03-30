@@ -8,6 +8,8 @@ import { useWebSocket } from "./hooks/useWebSocket";
 import { useProjects } from "./hooks/useProjects";
 import { useTasks } from "./hooks/useTasks";
 import { useTheme } from "./hooks/useTheme";
+import { ChatBubble } from "./components/chat/ChatBubble";
+import { ChatPanel } from "./components/chat/ChatPanel";
 import { Button } from "./components/ui/button";
 import { calculateTaskMetrics } from "./lib/taskMetrics";
 import { api } from "./lib/api";
@@ -40,6 +42,7 @@ function AppContent() {
   const [project, setProject] = useState<Project | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [density, setDensity] = useState<"comfortable" | "compact">(() => {
     const saved = readStorage(STORAGE_KEYS.DENSITY);
     return saved === "compact" ? "compact" : "comfortable";
@@ -232,6 +235,22 @@ function AppContent() {
           }
         }}
       />
+
+      {project && (
+        <>
+          <ChatPanel isOpen={chatOpen} projectId={project.id} onClose={() => setChatOpen(false)} />
+          <ChatBubble
+            isOpen={chatOpen}
+            onToggle={() => {
+              setChatOpen((prev) => {
+                const next = !prev;
+                console.debug("[app] Chat", next ? "opened" : "closed");
+                return next;
+              });
+            }}
+          />
+        </>
+      )}
 
       <CommandPalette
         open={commandOpen}

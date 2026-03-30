@@ -19,6 +19,11 @@ export {
   type WsEvent,
   type RoadmapCompletePayload,
   type RoadmapErrorPayload,
+  type ChatMessage,
+  type ChatRequest,
+  type ChatStreamTokenPayload,
+  type ChatDonePayload,
+  type ChatErrorPayload,
 } from "./types.js";
 
 export { STATUS_CONFIG, ORDERED_STATUSES } from "./constants.js";

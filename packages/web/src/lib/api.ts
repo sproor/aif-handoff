@@ -8,6 +8,7 @@ import type {
   CreateTaskCommentInput,
   Project,
   CreateProjectInput,
+  ChatRequest,
 } from "@aif/shared/browser";
 
 const API_BASE = "/tasks";
@@ -214,5 +215,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ roadmapAlias, vision }),
     });
+  },
+
+  sendChatMessage(input: ChatRequest): Promise<{ conversationId: string }> {
+    console.debug("[api] POST /chat", { projectId: input.projectId, explore: input.explore });
+    return request<{ conversationId: string }>(
+      "/chat",
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+      120000,
+    );
   },
 };

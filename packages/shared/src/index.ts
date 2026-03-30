@@ -27,6 +27,11 @@ export {
   type ReorderTaskInput,
   type WsEventType,
   type WsEvent,
+  type ChatMessage,
+  type ChatRequest,
+  type ChatStreamTokenPayload,
+  type ChatDonePayload,
+  type ChatErrorPayload,
 } from "./types.js";
 
 // Database

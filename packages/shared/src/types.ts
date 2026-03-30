@@ -184,7 +184,10 @@ export type WsEventType =
   | "task:moved"
   | "agent:wake"
   | "roadmap:complete"
-  | "roadmap:error";
+  | "roadmap:error"
+  | "chat:token"
+  | "chat:done"
+  | "chat:error";
 
 export interface RoadmapCompletePayload {
   projectId: string;
@@ -204,5 +207,43 @@ export interface RoadmapErrorPayload {
 
 export interface WsEvent {
   type: WsEventType;
-  payload: Task | Project | { id: string } | RoadmapCompletePayload | RoadmapErrorPayload;
+  payload:
+    | Task
+    | Project
+    | { id: string }
+    | RoadmapCompletePayload
+    | RoadmapErrorPayload
+    | ChatStreamTokenPayload
+    | ChatDonePayload
+    | ChatErrorPayload;
+}
+
+// ── Chat types ──────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatRequest {
+  projectId: string;
+  message: string;
+  clientId: string;
+  conversationId?: string;
+  explore?: boolean;
+}
+
+export interface ChatStreamTokenPayload {
+  conversationId: string;
+  token: string;
+}
+
+export interface ChatDonePayload {
+  conversationId: string;
+}
+
+export interface ChatErrorPayload {
+  conversationId: string;
+  message: string;
+  code?: string;
 }

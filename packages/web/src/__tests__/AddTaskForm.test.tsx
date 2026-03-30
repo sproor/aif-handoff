@@ -5,7 +5,9 @@ const mutateCreateTask = vi.fn();
 
 vi.mock("@/lib/api", () => ({
   api: {
-    getSettings: vi.fn().mockResolvedValue({ useSubagents: true, maxReviewIterations: 3 }),
+    // Keep settings request pending in tests to avoid async state updates
+    // from useEffect that can trigger noisy act(...) warnings.
+    getSettings: vi.fn(() => new Promise<never>(() => {})),
   },
 }));
 

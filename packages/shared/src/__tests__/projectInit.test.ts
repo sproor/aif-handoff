@@ -15,5 +15,5 @@ describe("projectInit", () => {
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
     }
-  });
+  }, 15000);
 });

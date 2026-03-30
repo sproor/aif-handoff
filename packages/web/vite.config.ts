@@ -20,6 +20,7 @@ export default defineConfig({
       "/projects": apiTarget,
       "/tasks": apiTarget,
       "/agent": apiTarget,
+      "/chat": apiTarget,
       "/settings": apiTarget,
       "/health": apiTarget,
       "/ws": {
