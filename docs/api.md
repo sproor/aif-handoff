@@ -423,6 +423,75 @@ POST /tasks/:id/comments
 
 ---
 
+## AI Chat
+
+Interactive AI chat powered by Claude Agent SDK. Messages are sent via REST, responses stream back through WebSocket as tokens.
+
+### Send Message
+
+```
+POST /chat
+```
+
+**Body:**
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `projectId` | string | yes | | Project UUID — sets the agent's working directory |
+| `message` | string | yes | | User message (1-50,000 chars) |
+| `clientId` | string | yes | | WebSocket client ID for streaming tokens back |
+| `conversationId` | string | no | auto-generated | Pass the previous `conversationId` to continue a multi-turn conversation |
+| `explore` | boolean | no | `false` | When `true`, the message is prefixed with `/aif-explore` for codebase exploration mode |
+
+**Response:** `200 OK`
+
+```json
+{
+  "conversationId": "uuid"
+}
+```
+
+**Errors:**
+
+- `404` — Project not found
+- `429` — Claude usage limit reached (`code: "CHAT_USAGE_LIMIT"`)
+- `500` — Chat request failed (`code: "CHAT_REQUEST_FAILED"`)
+
+On error, a `chat:error` event is sent via WebSocket before the HTTP response.
+
+**Timeout:** Requests may take up to 120 seconds due to agent processing.
+
+### Streaming
+
+Chat responses stream via WebSocket events to the `clientId` specified in the request:
+
+| Event        | Payload                             | Description                                       |
+| ------------ | ----------------------------------- | ------------------------------------------------- |
+| `chat:token` | `{ conversationId, token }`         | Incremental text token from the agent             |
+| `chat:done`  | `{ conversationId }`                | Stream completed (sent on both success and error) |
+| `chat:error` | `{ conversationId, message, code }` | Error occurred during streaming                   |
+
+### Multi-turn Conversations
+
+To continue a conversation, pass the `conversationId` returned from the first message in subsequent requests. The server tracks Claude Agent SDK session IDs internally and uses `resume` to maintain context.
+
+Calling `clearMessages` on the client (or omitting `conversationId`) starts a fresh conversation.
+
+### Permissions
+
+The agent runs with `permissionMode: "acceptEdits"` by default — file reads and edits are auto-approved, but dangerous shell commands still require confirmation.
+
+When `AGENT_BYPASS_PERMISSIONS=true` is set in the environment, the agent runs with `permissionMode: "bypassPermissions"` (full autonomy, no confirmation prompts). This matches the behavior of task-processing subagents.
+
+### Agent Capabilities
+
+The chat agent has access to: `Read`, `Glob`, `Grep`, `Bash`, `Edit`, `Write`. Max turns per request: 20. The agent is scoped to the project's root path and instructed not to access files outside it.
+
+### Explore Mode
+
+When `explore: true`, the user message is wrapped as `/aif-explore <message>`, invoking the codebase exploration skill. This is toggled via the "Explore" checkbox in the UI.
+
+---
+
 ## WebSocket
 
 Connect to `ws://localhost:3009/ws` for real-time updates.
@@ -433,20 +502,21 @@ All events are JSON with this structure:
 
 ```json
 {
-  "type": "project:created | task:created | task:updated | task:moved | task:deleted",
-  "payload": {
-    /* project/task object or { id } for deletes */
-  }
+  "type": "event-type",
+  "payload": {}
 }
 ```
 
-| Event             | Payload             | Triggered By                                                                         |
-| ----------------- | ------------------- | ------------------------------------------------------------------------------------ |
-| `project:created` | Full project object | `POST /projects`                                                                     |
-| `task:created`    | Full task object    | `POST /tasks`, `POST /projects/:id/roadmap/import`                                   |
-| `task:updated`    | Full task object    | `PUT /tasks/:id`, `PATCH /tasks/:id/position`, `POST /tasks/:id/events` (`fast_fix`) |
-| `task:moved`      | Full task object    | `POST /tasks/:id/events`                                                             |
-| `task:deleted`    | `{ id: string }`    | `DELETE /tasks/:id`                                                                  |
+| Event             | Payload                             | Triggered By                                                                         |
+| ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------ |
+| `project:created` | Full project object                 | `POST /projects`                                                                     |
+| `task:created`    | Full task object                    | `POST /tasks`, `POST /projects/:id/roadmap/import`                                   |
+| `task:updated`    | Full task object                    | `PUT /tasks/:id`, `PATCH /tasks/:id/position`, `POST /tasks/:id/events` (`fast_fix`) |
+| `task:moved`      | Full task object                    | `POST /tasks/:id/events`                                                             |
+| `task:deleted`    | `{ id: string }`                    | `DELETE /tasks/:id`                                                                  |
+| `chat:token`      | `{ conversationId, token }`         | `POST /chat` — streaming response tokens                                             |
+| `chat:done`       | `{ conversationId }`                | `POST /chat` — stream completed                                                      |
+| `chat:error`      | `{ conversationId, message, code }` | `POST /chat` — error during streaming                                                |
 
 ### Connection
 
