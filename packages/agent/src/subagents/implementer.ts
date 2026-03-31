@@ -124,6 +124,7 @@ Requirements:
     prompt,
     options: {
       cwd: input.projectRoot,
+      env: { ...process.env, HANDOFF_MODE: "1", HANDOFF_TASK_ID: input.task.id },
       settingSources: ["project"],
       ...modelOption("haiku"),
       systemPrompt: {
@@ -236,6 +237,7 @@ Execution rules:
     prompt,
     maxBudgetUsd: implementerBudget,
     agent: useSubagents ? AGENT_NAME : undefined,
+    skipReview: task.skipReview ?? false,
   });
 
   let finalResultText = resultText;

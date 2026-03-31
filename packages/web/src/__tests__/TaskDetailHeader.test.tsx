@@ -22,6 +22,7 @@ const baseTask: Task = {
   maxReviewIterations: 3,
   paused: false,
   lastHeartbeatAt: null,
+  lastSyncedAt: null,
   roadmapAlias: "RM-1",
   tags: ["backend", "rm:ignore"],
   status: "plan_ready",

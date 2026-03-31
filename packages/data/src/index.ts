@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, lte, min, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, like, lte, min, or, sql } from "drizzle-orm";
 import {
   parseAttachments,
   parseTaskTokenUsage,
@@ -101,6 +101,133 @@ export function listTasks(projectId?: string): TaskRow[] {
       .all();
   }
   return db.select().from(tasks).orderBy(asc(tasks.status), asc(tasks.position)).all();
+}
+
+/** Summary projection — excludes heavy text fields for list/search responses. */
+export type TaskSummaryRow = Pick<TaskRow,
+  | "id" | "projectId" | "title" | "status" | "priority" | "position"
+  | "autoMode" | "isFix" | "paused" | "roadmapAlias" | "tags"
+  | "blockedReason" | "blockedFromStatus" | "retryCount"
+  | "reworkRequested" | "reviewIterationCount" | "maxReviewIterations"
+  | "tokenTotal" | "costUsd" | "lastSyncedAt" | "createdAt" | "updatedAt"
+>;
+
+const SUMMARY_COLUMNS = {
+  id: tasks.id,
+  projectId: tasks.projectId,
+  title: tasks.title,
+  status: tasks.status,
+  priority: tasks.priority,
+  position: tasks.position,
+  autoMode: tasks.autoMode,
+  isFix: tasks.isFix,
+  paused: tasks.paused,
+  roadmapAlias: tasks.roadmapAlias,
+  tags: tasks.tags,
+  blockedReason: tasks.blockedReason,
+  blockedFromStatus: tasks.blockedFromStatus,
+  retryCount: tasks.retryCount,
+  reworkRequested: tasks.reworkRequested,
+  reviewIterationCount: tasks.reviewIterationCount,
+  maxReviewIterations: tasks.maxReviewIterations,
+  tokenTotal: tasks.tokenTotal,
+  costUsd: tasks.costUsd,
+  lastSyncedAt: tasks.lastSyncedAt,
+  createdAt: tasks.createdAt,
+  updatedAt: tasks.updatedAt,
+} as const;
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * List tasks with pagination and optional filters.
+ * Returns summary rows (no plan, description, logs) to keep payloads small.
+ */
+export function listTasksPaginated(options: {
+  projectId?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): PaginatedResult<TaskSummaryRow> {
+  const db = getDb();
+  const lim = Math.min(options.limit ?? 20, 100);
+  const off = options.offset ?? 0;
+
+  const conditions = [];
+  if (options.projectId) conditions.push(eq(tasks.projectId, options.projectId));
+  if (options.status) conditions.push(eq(tasks.status, options.status as any));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const total = db
+    .select({ count: sql<number>`count(*)` })
+    .from(tasks)
+    .where(where)
+    .get()?.count ?? 0;
+
+  const items = db
+    .select(SUMMARY_COLUMNS)
+    .from(tasks)
+    .where(where)
+    .orderBy(asc(tasks.status), asc(tasks.position))
+    .limit(lim)
+    .offset(off)
+    .all();
+
+  return { items, total, limit: lim, offset: off };
+}
+
+/**
+ * Search tasks with pagination. Returns summary rows.
+ */
+export function searchTasksPaginated(options: {
+  query: string;
+  projectId?: string;
+  limit?: number;
+  offset?: number;
+}): PaginatedResult<TaskSummaryRow> {
+  const db = getDb();
+  const lim = Math.min(options.limit ?? 20, 50);
+  const off = options.offset ?? 0;
+  const pattern = `%${options.query}%`;
+
+  const conditions = [
+    or(like(tasks.title, pattern), like(tasks.description, pattern)),
+  ];
+  if (options.projectId) conditions.push(eq(tasks.projectId, options.projectId));
+
+  const where = and(...conditions);
+
+  const total = db
+    .select({ count: sql<number>`count(*)` })
+    .from(tasks)
+    .where(where)
+    .get()?.count ?? 0;
+
+  const items = db
+    .select(SUMMARY_COLUMNS)
+    .from(tasks)
+    .where(where)
+    .orderBy(desc(tasks.updatedAt))
+    .limit(lim)
+    .offset(off)
+    .all();
+
+  return { items, total, limit: lim, offset: off };
+}
+
+/** Convert a TaskSummaryRow to a JSON-safe object (parse tags). */
+export function toTaskSummary(row: TaskSummaryRow) {
+  const { tags, ...rest } = row;
+  return {
+    ...rest,
+    tags: parseTags(tags),
+  };
 }
 
 export function createTask(input: {
@@ -444,6 +571,40 @@ export function incrementTaskTokenUsage(
  * Find existing tasks that match the given project + roadmap alias combination.
  * Used for deduplication during roadmap import.
  */
+/**
+ * Full-text search across task title and description.
+ * Case-insensitive SQL LIKE-based search. Returns matching tasks ordered by updatedAt desc.
+ * Limited to 50 results.
+ */
+export function searchTasks(query: string, projectId?: string): TaskRow[] {
+  const db = getDb();
+  const pattern = `%${query}%`;
+  const conditions = [
+    or(
+      like(tasks.title, pattern),
+      like(tasks.description, pattern),
+    ),
+  ];
+  if (projectId) {
+    conditions.push(eq(tasks.projectId, projectId));
+  }
+  return db
+    .select()
+    .from(tasks)
+    .where(and(...conditions))
+    .orderBy(desc(tasks.updatedAt))
+    .limit(50)
+    .all();
+}
+
+/**
+ * Update the lastSyncedAt timestamp for a task (called by MCP sync operations).
+ */
+export function touchLastSyncedAt(taskId: string): void {
+  const nowIso = new Date().toISOString();
+  setTaskFields(taskId, { lastSyncedAt: nowIso });
+}
+
 export function findTasksByRoadmapAlias(projectId: string, alias: string): TaskRow[] {
   return getDb()
     .select()

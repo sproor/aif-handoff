@@ -105,6 +105,7 @@ export async function generateRoadmapFile(
       prompt,
       options: {
         cwd: project.rootPath,
+        env: { ...process.env, HANDOFF_MODE: "1" },
         settingSources: ["project"],
         ...modelOption("sonnet"),
         systemPrompt: {
@@ -234,6 +235,7 @@ export async function generateRoadmapTasks(
       prompt,
       options: {
         cwd: project.rootPath,
+        env: { ...process.env, HANDOFF_MODE: "1" },
         settingSources: ["project"],
         ...modelOption("haiku"),
         systemPrompt: {

@@ -14,10 +14,10 @@ export const projects = sqliteTable("projects", {
   reviewSidecarMaxBudgetUsd: real("review_sidecar_max_budget_usd"),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   updatedAt: text("updated_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
 });
 
 export type ProjectRow = typeof projects.$inferSelect;
@@ -61,12 +61,13 @@ export const tasks = sqliteTable("tasks", {
   maxReviewIterations: integer("max_review_iterations").notNull().default(3),
   paused: integer("paused", { mode: "boolean" }).notNull().default(false),
   lastHeartbeatAt: text("last_heartbeat_at"),
+  lastSyncedAt: text("last_synced_at"),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   updatedAt: text("updated_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
 });
 
 export type TaskRow = typeof tasks.$inferSelect;

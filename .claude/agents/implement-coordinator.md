@@ -26,6 +26,26 @@ Purpose:
 
 CRITICAL: This agent MUST run as a top-level custom agent session via `claude --agent implement-coordinator`. Normal subagents cannot spawn other subagents.
 
+## Handoff Integration
+
+Check environment: `echo ${HANDOFF_MODE:-}`, `echo ${HANDOFF_TASK_ID:-}`, `echo ${HANDOFF_SKIP_REVIEW:-}`
+
+Pass `HANDOFF_TASK_ID`, `HANDOFF_MODE`, and `HANDOFF_SKIP_REVIEW` env vars through to `implement-worker` invocations (workers never call MCP directly).
+
+**When `HANDOFF_MODE` is NOT `1` and `HANDOFF_TASK_ID` is non-empty** (manual Claude Code session):
+
+The Handoff coordinator is NOT managing this run. Sync with Handoff yourself via MCP tools:
+
+- **On start (before first task dispatch):** Call `handoff_sync_status` with `{ taskId: <HANDOFF_TASK_ID>, newStatus: "implementing", sourceTimestamp: <now ISO>, direction: "aif_to_handoff" }`.
+- **After each layer completes:** Read the updated plan file and call `handoff_push_plan` with `{ taskId: <HANDOFF_TASK_ID>, planContent: <full plan text> }` to sync checklist progress.
+- **On completion (all tasks done):** Call `handoff_push_plan` with the final plan, then:
+  - If `HANDOFF_SKIP_REVIEW` is `1`: call `handoff_sync_status` with `{ newStatus: "done", ... }`.
+  - Otherwise: call `handoff_sync_status` with `{ newStatus: "review", ... }`.
+
+**When `HANDOFF_MODE` is `1`** (autonomous Handoff agent):
+
+The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. Skip all interactive prompts and use defaults.
+
 ## Runtime check
 
 At the very start of your first turn, before doing anything else:

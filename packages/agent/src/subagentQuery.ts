@@ -26,6 +26,8 @@ export interface SubagentQueryOptions {
   agent?: string;
   /** Additional SubagentStart hooks beyond the default activity/subagent loggers. */
   extraSubagentStartHooks?: HookCallback[];
+  /** Whether to skip code review stage (implementing → done instead of implementing → review). */
+  skipReview?: boolean;
   /** Optional override for tests/tuning: timeout waiting for first message from query stream. */
   queryStartTimeoutMs?: number;
   /** Optional override for tests/tuning: delay before retrying after query_start_timeout. */
@@ -107,6 +109,7 @@ async function runQueryAttempt(
     prompt,
     maxBudgetUsd = null,
     agent,
+    skipReview = false,
     extraSubagentStartHooks = [],
   } = options;
 
@@ -123,7 +126,12 @@ async function runQueryAttempt(
     prompt,
     options: {
       cwd: projectRoot,
-      env: process.env,
+      env: {
+        ...process.env,
+        HANDOFF_MODE: "1",
+        HANDOFF_TASK_ID: taskId,
+        ...(skipReview ? { HANDOFF_SKIP_REVIEW: "1" } : {}),
+      },
       pathToClaudeCodeExecutable: getClaudePath(),
       settingSources: ["project"],
       permissionMode: bypassPermissions ? "bypassPermissions" : "acceptEdits",

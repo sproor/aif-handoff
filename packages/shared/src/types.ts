@@ -78,6 +78,7 @@ export interface Task {
   maxReviewIterations: number;
   paused: boolean;
   lastHeartbeatAt: string | null;
+  lastSyncedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -187,7 +188,11 @@ export type WsEventType =
   | "roadmap:error"
   | "chat:token"
   | "chat:done"
-  | "chat:error";
+  | "chat:error"
+  | "sync:task_created"
+  | "sync:task_updated"
+  | "sync:status_changed"
+  | "sync:plan_pushed";
 
 export interface RoadmapCompletePayload {
   projectId: string;

@@ -12,6 +12,28 @@ Fix a specific bug or problem in the codebase. Supports two modes: immediate fix
 
 ## Workflow
 
+### Step 0 (pre): Detect Handoff Mode
+
+Handoff mode: !`echo ${HANDOFF_MODE:-}`
+Handoff task ID: !`echo ${HANDOFF_TASK_ID:-}`
+
+**If `HANDOFF_TASK_ID` is non-empty**, always insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of `FIX_PLAN.md` when creating it (Step 1.1).
+
+**Then check `HANDOFF_MODE`:**
+
+#### When `HANDOFF_MODE` is NOT `1` (manual Claude Code session with Handoff sync)
+
+The Handoff coordinator is NOT managing this run. You must sync with Handoff yourself via MCP tools:
+
+- **On start:** Call `handoff_sync_status` with `{ taskId: <HANDOFF_TASK_ID>, newStatus: "planning", sourceTimestamp: <now ISO>, direction: "aif_to_handoff" }`.
+- **On completion:** Call `handoff_push_plan` with `{ taskId: <HANDOFF_TASK_ID>, planContent: <full fix plan or result> }`. Then call `handoff_sync_status` with `{ newStatus: "plan_ready", ... }`.
+
+#### When `HANDOFF_MODE` is `1` (autonomous Handoff agent)
+
+The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. Instead:
+
+- **No interactive questions:** Do not use `AskUserQuestion` — default to "Fix now" mode. Always include tests and logging.
+
 ### Step 0: Load Config and Resolve Paths
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:

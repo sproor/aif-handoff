@@ -222,6 +222,21 @@ export const api = {
     });
   },
 
+  getMcpStatus(): Promise<{ installed: boolean; serverName: string; config: unknown }> {
+    return request("/settings/mcp");
+  },
+
+  installMcp(): Promise<{ success: boolean; serverName: string }> {
+    return request("/settings/mcp/install", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+
+  removeMcp(): Promise<{ success: boolean }> {
+    return request("/settings/mcp", { method: "DELETE" });
+  },
+
   sendChatMessage(input: ChatRequest): Promise<{ conversationId: string }> {
     console.debug("[api] POST /chat", { projectId: input.projectId, explore: input.explore });
     return request<{ conversationId: string }>(

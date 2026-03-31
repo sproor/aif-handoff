@@ -17,6 +17,7 @@ Built on top of [AI Factory](https://github.com/lee-to/ai-factory) workflow and 
 - **Layer-aware execution** — implementer computes dependency layers and enforces parallel worker dispatch where possible
 - **Self-healing pipeline** — heartbeat + stale-stage watchdog auto-recovers stuck agent stages
 - **Human-in-the-loop** — approve plans, request changes, or let auto-mode handle everything
+- **MCP sync** — bidirectional task sync between Handoff and AIF tools via Model Context Protocol
 
 ## Quick Start
 

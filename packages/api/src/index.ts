@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import { projectsRouter } from "./routes/projects.js";
 import { tasksRouter } from "./routes/tasks.js";
 import { chatRouter } from "./routes/chat.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { setupWebSocket } from "./ws.js";
 import { requestLogger } from "./middleware/logger.js";
 
@@ -110,6 +111,7 @@ app.get("/settings", (c) => {
 app.route("/projects", projectsRouter);
 app.route("/tasks", tasksRouter);
 app.route("/chat", chatRouter);
+app.route("/settings", settingsRoutes);
 
 // Initialize DB and start server
 const port = Number(process.env.PORT) || 3009;

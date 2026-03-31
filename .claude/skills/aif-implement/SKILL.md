@@ -12,6 +12,31 @@ Execute tasks from the plan, track progress, and enable session continuation.
 
 ## Workflow
 
+### Step 0 (pre): Detect Handoff Mode
+
+Handoff mode: !`echo ${HANDOFF_MODE:-}`
+Handoff task ID: !`echo ${HANDOFF_TASK_ID:-}`
+Handoff skip review: !`echo ${HANDOFF_SKIP_REVIEW:-}`
+
+**Then check `HANDOFF_MODE`:**
+
+#### When `HANDOFF_MODE` is NOT `1` and `HANDOFF_TASK_ID` is non-empty (manual Claude Code session with Handoff sync)
+
+The Handoff coordinator is NOT managing this run. You must sync with Handoff yourself via MCP tools:
+
+- **On start:** Call `handoff_sync_status` with `{ taskId: <HANDOFF_TASK_ID>, newStatus: "implementing", sourceTimestamp: <now ISO>, direction: "aif_to_handoff" }`.
+- **On checklist update (Step 3.6):** After updating a checkbox in the plan file, call `handoff_push_plan` with `{ taskId: <HANDOFF_TASK_ID>, planContent: <full updated plan text> }` to keep the Kanban UI up-to-date.
+- **On completion (Step 5):** Call `handoff_push_plan` with the final plan content, then:
+  - If `HANDOFF_SKIP_REVIEW` is `1`: call `handoff_sync_status` with `{ newStatus: "done", ... }`.
+  - Otherwise: call `handoff_sync_status` with `{ newStatus: "review", ... }`.
+
+#### When `HANDOFF_MODE` is `1` (autonomous Handoff agent)
+
+The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. Instead:
+
+- **No interactive questions:** Do not use `AskUserQuestion` — use sensible defaults (auto-commit at checkpoints, skip pause prompts).
+- **No pause/resume prompts:** Execute all tasks sequentially without stopping.
+
 ### Step 0: Check Current State
 
 **FIRST:** Determine what state we're in:

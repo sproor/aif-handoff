@@ -35,7 +35,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ["packages/api/src/**/*.{ts,tsx}", "packages/agent/src/**/*.{ts,tsx}"],
+    files: [
+      "packages/api/src/**/*.{ts,tsx}",
+      "packages/agent/src/**/*.{ts,tsx}",
+      "packages/mcp/src/**/*.{ts,tsx}",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -54,22 +58,6 @@ export default tseslint.config(
               name: "drizzle-orm",
               message: "SQL query construction is restricted to @aif/data.",
             },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    files: [
-      "packages/api/src/**/*.{ts,tsx}",
-      "packages/agent/src/**/*.{ts,tsx}",
-      "packages/web/src/**/*.{ts,tsx}",
-    ],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
             {
               name: "better-sqlite3",
               message: "Use centralized data access via @aif/data.",
@@ -156,6 +144,7 @@ export default tseslint.config(
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+      "no-restricted-imports": "off",
     },
   }
 );

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Bell, Moon, Sun, Command, ChartColumn, Map, Loader2 } from "lucide-react";
+import { Bell, Moon, Sun, Command, ChartColumn, Map, Loader2, Settings, Check, X as XIcon } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import {
   getDesktopNotificationPermission,
@@ -61,6 +61,10 @@ export function Header({
   const [roadmapResult, setRoadmapResult] = useState<RoadmapImportResult | null>(null);
   const [roadmapExists, setRoadmapExists] = useState<boolean | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
+  const [mcpInstalled, setMcpInstalled] = useState<boolean | null>(null);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpError, setMcpError] = useState<string | null>(null);
   const { settings, setSettings } = useNotificationSettings();
   const permission = getDesktopNotificationPermission();
   const isCompact = density === "compact";
@@ -280,6 +284,22 @@ export function Header({
           >
             <ChartColumn className="h-3.5 w-3.5" />
             <span className="hidden md:inline">METRICS</span>
+          </button>
+          <button
+            onClick={() => {
+              setGlobalSettingsOpen(true);
+              setMcpError(null);
+              setMcpInstalled(null);
+              setMcpLoading(false);
+              api.getMcpStatus().then(
+                (res) => setMcpInstalled(res.installed),
+                () => setMcpInstalled(null),
+              );
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center border border-border bg-card text-foreground transition-colors hover:border-primary/70 hover:bg-accent"
+            aria-label="Global settings"
+          >
+            <Settings className="h-4 w-4" />
           </button>
           <button
             onClick={() => setSettingsOpen(true)}
@@ -505,6 +525,95 @@ export function Header({
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={globalSettingsOpen} onOpenChange={setGlobalSettingsOpen}>
+        <DialogContent>
+          <DialogClose onClose={() => setGlobalSettingsOpen(false)} />
+          <DialogHeader>
+            <DialogTitle>Global Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border border-border bg-card/50 px-3 py-2">
+              <div className="flex-1 mr-3">
+                <p className="text-sm font-medium">MCP Handoff Server</p>
+                <p className="text-xs text-muted-foreground">
+                  Enables Claude Code to read and sync tasks via MCP tools
+                </p>
+                {mcpInstalled === null && !mcpError && (
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Checking...
+                  </p>
+                )}
+                {mcpInstalled === true && (
+                  <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                    <Check className="h-3 w-3" />
+                    Installed in ~/.claude.json
+                  </p>
+                )}
+                {mcpInstalled === false && (
+                  <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                    <XIcon className="h-3 w-3" />
+                    Not configured
+                  </p>
+                )}
+                {mcpError && (
+                  <p className="text-xs text-destructive mt-1">{mcpError}</p>
+                )}
+              </div>
+              <div>
+                {mcpInstalled === false && (
+                  <button
+                    onClick={async () => {
+                      setMcpLoading(true);
+                      setMcpError(null);
+                      try {
+                        await api.installMcp();
+                        setMcpInstalled(true);
+                      } catch (err) {
+                        setMcpError(err instanceof Error ? err.message : "Failed to install");
+                      } finally {
+                        setMcpLoading(false);
+                      }
+                    }}
+                    disabled={mcpLoading}
+                    className="min-w-20 border border-border bg-background px-2 py-1 text-xs transition-colors hover:border-primary/70 disabled:opacity-40 flex items-center justify-center gap-1"
+                  >
+                    {mcpLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      "Install"
+                    )}
+                  </button>
+                )}
+                {mcpInstalled === true && (
+                  <button
+                    onClick={async () => {
+                      setMcpLoading(true);
+                      setMcpError(null);
+                      try {
+                        await api.removeMcp();
+                        setMcpInstalled(false);
+                      } catch (err) {
+                        setMcpError(err instanceof Error ? err.message : "Failed to remove");
+                      } finally {
+                        setMcpLoading(false);
+                      }
+                    }}
+                    disabled={mcpLoading}
+                    className="min-w-20 border border-border bg-background px-2 py-1 text-xs text-destructive transition-colors hover:border-destructive/70 disabled:opacity-40 flex items-center justify-center gap-1"
+                  >
+                    {mcpLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      "Remove"
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </header>

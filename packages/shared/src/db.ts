@@ -48,8 +48,8 @@ function ensureTables(sqlite: Database.Database): void {
       plan_checker_max_budget_usd REAL,
       implementer_max_budget_usd REAL,
       review_sidecar_max_budget_usd REAL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )
   `);
   sqlite.exec(`
@@ -89,8 +89,9 @@ function ensureTables(sqlite: Database.Database): void {
       max_review_iterations INTEGER NOT NULL DEFAULT 3,
       paused INTEGER NOT NULL DEFAULT 0,
       last_heartbeat_at TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      last_synced_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )
   `);
   sqlite.exec(`
@@ -159,6 +160,7 @@ function ensureTables(sqlite: Database.Database): void {
   ensureColumn(sqlite, "tasks", "paused", "paused INTEGER NOT NULL DEFAULT 0");
   ensureColumn(sqlite, "task_comments", "author", "author TEXT NOT NULL DEFAULT 'human'");
   ensureColumn(sqlite, "task_comments", "attachments", "attachments TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn(sqlite, "tasks", "last_synced_at", "last_synced_at TEXT");
 
   ensureIndexes(sqlite);
 }

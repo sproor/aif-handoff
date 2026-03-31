@@ -571,6 +571,10 @@ All events are JSON with this structure:
 | `task:updated`    | Full task object                    | `PUT /tasks/:id`, `PATCH /tasks/:id/position`, `POST /tasks/:id/events` (`fast_fix`) |
 | `task:moved`      | Full task object                    | `POST /tasks/:id/events`                                                             |
 | `task:deleted`    | `{ id: string }`                    | `DELETE /tasks/:id`                                                                  |
+| `sync:task_created` | Full task object                  | MCP `handoff_create_task`                                                            |
+| `sync:task_updated` | Full task object                  | MCP `handoff_update_task`, `handoff_push_plan`                                       |
+| `sync:status_changed` | Full task object                | MCP `handoff_sync_status`                                                            |
+| `sync:plan_pushed` | Full task object                   | MCP `handoff_push_plan`                                                              |
 | `chat:token`      | `{ conversationId, token }`         | `POST /chat` — streaming response tokens                                             |
 | `chat:done`       | `{ conversationId }`                | `POST /chat` — stream completed                                                      |
 | `chat:error`      | `{ conversationId, message, code }` | `POST /chat` — error during streaming                                                |
@@ -579,7 +583,14 @@ All events are JSON with this structure:
 
 The WebSocket endpoint is a simple broadcast channel — no authentication, no subscription topics. All connected clients receive all events.
 
+## MCP Sync Integration
+
+The Handoff MCP server (`packages/mcp`) provides bidirectional sync between AIF tooling and Handoff via the Model Context Protocol. When MCP tools modify tasks, they broadcast `sync:*` events over the WebSocket system so the Kanban UI reflects changes in real time.
+
+See [MCP Sync Server](mcp-sync.md) for full documentation.
+
 ## See Also
 
 - [Architecture](architecture.md) — system overview and data flow
 - [Configuration](configuration.md) — server port and environment settings
+- [MCP Sync Server](mcp-sync.md) — MCP tools and sync protocol

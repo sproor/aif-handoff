@@ -123,6 +123,7 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
       prompt,
       options: {
         cwd: project.rootPath,
+        env: { ...process.env, HANDOFF_MODE: "1", ...(taskId ? { HANDOFF_TASK_ID: taskId } : {}) },
         permissionMode: getEnv().AGENT_BYPASS_PERMISSIONS ? "bypassPermissions" : "acceptEdits",
         ...(getEnv().AGENT_BYPASS_PERMISSIONS ? { allowDangerouslySkipPermissions: true } : {}),
         settingSources: ["project"],

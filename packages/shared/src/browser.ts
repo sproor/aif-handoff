@@ -31,3 +31,11 @@ export {
 export { STATUS_CONFIG, ORDERED_STATUSES } from "./constants.js";
 export { HUMAN_ACTIONS_BY_STATUS } from "./stateMachine.js";
 export { withTimeout } from "./withTimeout.js";
+
+// Sync types (browser-safe subset — types only, no Node.js logger dependency)
+export type {
+  SyncDirection,
+  ConflictResolution,
+  SyncEvent,
+  PlanAnnotation,
+} from "./sync.js";

@@ -121,6 +121,7 @@ ${
     prompt,
     options: {
       cwd: input.projectRoot,
+      env: { ...process.env, HANDOFF_MODE: "1", HANDOFF_TASK_ID: input.taskId },
       settingSources: ["project"],
       ...modelOption("haiku"),
       systemPrompt: {

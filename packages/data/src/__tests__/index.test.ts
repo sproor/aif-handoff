@@ -38,6 +38,11 @@ const {
   findTasksByRoadmapAlias,
   persistTaskPlanForTask,
   findCoordinatorTaskCandidate,
+  searchTasks,
+  touchLastSyncedAt,
+  listTasksPaginated,
+  searchTasksPaginated,
+  toTaskSummary,
 } = await import("../index.js");
 
 function seedProject(id = "proj-1") {
@@ -457,6 +462,220 @@ describe("data layer", () => {
 
     it("returns empty for non-matching alias", () => {
       expect(findTasksByRoadmapAlias("proj-1", "none")).toHaveLength(0);
+    });
+  });
+
+  // ── Search ────────────────────────────────────────────────
+
+  describe("searchTasks", () => {
+    it("finds tasks by title", () => {
+      createTask({ projectId: "proj-1", title: "Alpha feature", description: "desc" });
+      createTask({ projectId: "proj-1", title: "Beta bugfix", description: "desc" });
+      const results = searchTasks("Alpha");
+      expect(results).toHaveLength(1);
+      expect(results[0].title).toBe("Alpha feature");
+    });
+
+    it("finds tasks by description", () => {
+      createTask({ projectId: "proj-1", title: "Task", description: "Fix the login flow" });
+      const results = searchTasks("login");
+      expect(results).toHaveLength(1);
+    });
+
+    it("is case-insensitive", () => {
+      createTask({ projectId: "proj-1", title: "hello world", description: "" });
+      const results = searchTasks("HELLO");
+      expect(results).toHaveLength(1);
+    });
+
+    it("scopes search by project", () => {
+      testDb.current
+        .insert(projects)
+        .values({ id: "proj-2", name: "Other", rootPath: "/tmp/other" })
+        .run();
+      createTask({ projectId: "proj-1", title: "Shared keyword", description: "" });
+      createTask({ projectId: "proj-2", title: "Shared keyword", description: "" });
+      const results = searchTasks("Shared", "proj-1");
+      expect(results).toHaveLength(1);
+      expect(results[0].projectId).toBe("proj-1");
+    });
+
+    it("returns empty for no matches", () => {
+      createTask({ projectId: "proj-1", title: "Something", description: "" });
+      expect(searchTasks("nonexistent")).toHaveLength(0);
+    });
+
+    it("limits results to 50", () => {
+      for (let i = 0; i < 55; i++) {
+        createTask({ projectId: "proj-1", title: `Match item ${i}`, description: "" });
+      }
+      const results = searchTasks("Match");
+      expect(results).toHaveLength(50);
+    });
+
+    it("orders by updatedAt desc", () => {
+      const t1 = createTask({ projectId: "proj-1", title: "Search order A", description: "" });
+      const t2 = createTask({ projectId: "proj-1", title: "Search order B", description: "" });
+      // Manually set updatedAt to control ordering
+      if (t1 && t2) {
+        setTaskFields(t1.id, { updatedAt: "2026-01-01T00:00:00.000Z" });
+        setTaskFields(t2.id, { updatedAt: "2026-01-02T00:00:00.000Z" });
+        const results = searchTasks("Search order");
+        expect(results[0].id).toBe(t2.id);
+        expect(results[1].id).toBe(t1.id);
+      }
+    });
+  });
+
+  // ── Sync timestamps ───────────────────────────────────────
+
+  describe("touchLastSyncedAt", () => {
+    it("sets lastSyncedAt timestamp", () => {
+      const task = createTask({ projectId: "proj-1", title: "Sync", description: "" });
+      expect(task).toBeDefined();
+      expect(task!.lastSyncedAt).toBeNull();
+
+      touchLastSyncedAt(task!.id);
+      const updated = findTaskById(task!.id);
+      expect(updated).toBeDefined();
+      expect(updated!.lastSyncedAt).toBeTruthy();
+      expect(new Date(updated!.lastSyncedAt!).getTime()).toBeGreaterThan(0);
+    });
+
+    it("updates lastSyncedAt on subsequent calls", () => {
+      const task = createTask({ projectId: "proj-1", title: "Sync2", description: "" });
+      touchLastSyncedAt(task!.id);
+      const first = findTaskById(task!.id)!.lastSyncedAt;
+
+      // Small delay to ensure different timestamp
+      const later = new Date(Date.now() + 100).toISOString();
+      setTaskFields(task!.id, { lastSyncedAt: later });
+      const second = findTaskById(task!.id)!.lastSyncedAt;
+      expect(second).not.toBe(first);
+    });
+  });
+
+  // ── Millisecond precision ─────────────────────────────────
+
+  describe("millisecond timestamp precision", () => {
+    it("createdAt has millisecond precision", () => {
+      const task = createTask({ projectId: "proj-1", title: "Precision", description: "" });
+      expect(task).toBeDefined();
+      // JS toISOString always includes milliseconds
+      expect(task!.createdAt).toMatch(/\.\d{3}Z$/);
+    });
+
+    it("updatedAt has millisecond precision after update", () => {
+      const task = createTask({ projectId: "proj-1", title: "Precision2", description: "" });
+      const updated = updateTask(task!.id, { title: "Updated" });
+      expect(updated).toBeDefined();
+      expect(updated!.updatedAt).toMatch(/\.\d{3}Z$/);
+    });
+  });
+
+  // ── Paginated list ────────────────────────────────────────
+
+  describe("listTasksPaginated", () => {
+    it("returns paginated results with total", () => {
+      for (let i = 0; i < 5; i++) {
+        createTask({ projectId: "proj-1", title: `Page task ${i}`, description: "" });
+      }
+      const result = listTasksPaginated({ limit: 2, offset: 0 });
+      expect(result.items).toHaveLength(2);
+      expect(result.total).toBe(5);
+      expect(result.limit).toBe(2);
+      expect(result.offset).toBe(0);
+    });
+
+    it("supports offset", () => {
+      for (let i = 0; i < 5; i++) {
+        createTask({ projectId: "proj-1", title: `Offset task ${i}`, description: "" });
+      }
+      const page1 = listTasksPaginated({ limit: 2, offset: 0 });
+      const page2 = listTasksPaginated({ limit: 2, offset: 2 });
+      expect(page1.items[0].id).not.toBe(page2.items[0].id);
+    });
+
+    it("filters by projectId", () => {
+      testDb.current
+        .insert(projects)
+        .values({ id: "proj-pg", name: "PG", rootPath: "/tmp/pg" })
+        .run();
+      createTask({ projectId: "proj-1", title: "P1", description: "" });
+      createTask({ projectId: "proj-pg", title: "PG1", description: "" });
+      const result = listTasksPaginated({ projectId: "proj-pg" });
+      expect(result.total).toBe(1);
+      expect(result.items[0].title).toBe("PG1");
+    });
+
+    it("filters by status", () => {
+      const t = createTask({ projectId: "proj-1", title: "Status test", description: "" });
+      setTaskFields(t!.id, { status: "planning" });
+      createTask({ projectId: "proj-1", title: "Backlog", description: "" });
+      const result = listTasksPaginated({ status: "planning" });
+      expect(result.total).toBe(1);
+    });
+
+    it("caps limit at 100", () => {
+      const result = listTasksPaginated({ limit: 999 });
+      expect(result.limit).toBe(100);
+    });
+
+    it("defaults limit to 20", () => {
+      const result = listTasksPaginated({});
+      expect(result.limit).toBe(20);
+    });
+
+    it("returns summary fields without plan/description/logs", () => {
+      createTask({ projectId: "proj-1", title: "Summary", description: "long desc" });
+      const result = listTasksPaginated({});
+      const item = result.items[0];
+      expect(item).toHaveProperty("id");
+      expect(item).toHaveProperty("title");
+      expect(item).toHaveProperty("status");
+      expect(item).not.toHaveProperty("plan");
+      expect(item).not.toHaveProperty("description");
+      expect(item).not.toHaveProperty("implementationLog");
+      expect(item).not.toHaveProperty("agentActivityLog");
+    });
+  });
+
+  // ── Paginated search ──────────────────────────────────────
+
+  describe("searchTasksPaginated", () => {
+    it("returns paginated search results", () => {
+      for (let i = 0; i < 5; i++) {
+        createTask({ projectId: "proj-1", title: `Searchable ${i}`, description: "" });
+      }
+      const result = searchTasksPaginated({ query: "Searchable", limit: 2 });
+      expect(result.items).toHaveLength(2);
+      expect(result.total).toBe(5);
+    });
+
+    it("supports offset in search", () => {
+      for (let i = 0; i < 5; i++) {
+        createTask({ projectId: "proj-1", title: `Find me ${i}`, description: "" });
+      }
+      const p1 = searchTasksPaginated({ query: "Find me", limit: 2, offset: 0 });
+      const p2 = searchTasksPaginated({ query: "Find me", limit: 2, offset: 2 });
+      expect(p1.items[0].id).not.toBe(p2.items[0].id);
+    });
+
+    it("caps limit at 50", () => {
+      const result = searchTasksPaginated({ query: "x", limit: 999 });
+      expect(result.limit).toBe(50);
+    });
+  });
+
+  // ── toTaskSummary ─────────────────────────────────────────
+
+  describe("toTaskSummary", () => {
+    it("parses tags from JSON string", () => {
+      createTask({ projectId: "proj-1", title: "Tagged", description: "", tags: ["a", "b"] });
+      const result = listTasksPaginated({});
+      const summary = toTaskSummary(result.items[0]);
+      expect(Array.isArray(summary.tags)).toBe(true);
+      expect(summary.tags).toContain("a");
     });
   });
 });

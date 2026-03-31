@@ -16,6 +16,23 @@ Purpose:
 
 CRITICAL: This agent MUST run as a top-level custom agent session via `claude --agent plan-coordinator`. Normal subagents cannot spawn other subagents. If you detect that you are running as an ordinary subagent, stop immediately and return an error explaining this constraint.
 
+## Handoff Integration
+
+Check environment: `echo ${HANDOFF_MODE:-}` and `echo ${HANDOFF_TASK_ID:-}`
+
+Always pass `HANDOFF_TASK_ID` and `HANDOFF_MODE` env vars through to all plan-polisher invocations so they can insert the `<!-- handoff:task:<id> -->` annotation.
+
+**When `HANDOFF_MODE` is NOT `1` and `HANDOFF_TASK_ID` is non-empty** (manual Claude Code session):
+
+The Handoff coordinator is NOT managing this run. Sync with Handoff yourself via MCP tools:
+
+- **On start (before first plan-polisher):** Call `handoff_sync_status` with `{ taskId: <HANDOFF_TASK_ID>, newStatus: "planning", sourceTimestamp: <now ISO>, direction: "aif_to_handoff" }`.
+- **On completion (after final iteration):** Read the final plan file, then call `handoff_push_plan` with `{ taskId: <HANDOFF_TASK_ID>, planContent: <full plan text> }`. Then call `handoff_sync_status` with `{ newStatus: "plan_ready", ... }`.
+
+**When `HANDOFF_MODE` is `1`** (autonomous Handoff agent):
+
+The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. The plan-polisher will skip interactive prompts and use defaults.
+
 ## Input
 
 The user provides a planning request — the same input they would give to `/aif-plan`. Examples:

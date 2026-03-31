@@ -34,6 +34,7 @@ function makeTask(overrides: Partial<Task>): Task {
     maxReviewIterations: 3,
     paused: false,
     lastHeartbeatAt: null,
+    lastSyncedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,

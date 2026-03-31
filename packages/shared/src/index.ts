@@ -74,5 +74,15 @@ export {
 // Task usage metrics
 export { parseTaskTokenUsage, type TaskTokenUsage } from "./taskUsage.js";
 
+// Sync utilities
+export {
+  type SyncDirection,
+  type ConflictResolution,
+  type SyncEvent,
+  type PlanAnnotation,
+  parsePlanAnnotations,
+  insertPlanAnnotation,
+} from "./sync.js";
+
 // Utilities
 export { withTimeout } from "./withTimeout.js";

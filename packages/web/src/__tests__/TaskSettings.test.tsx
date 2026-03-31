@@ -21,6 +21,7 @@ const mockTask: Task = {
   maxReviewIterations: 3,
   paused: false,
   lastHeartbeatAt: null,
+  lastSyncedAt: null,
   roadmapAlias: null,
   tags: [],
   status: "backlog",
