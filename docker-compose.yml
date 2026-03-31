@@ -47,6 +47,21 @@ services:
       - api
     restart: unless-stopped
 
+  mcp:
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile
+      target: mcp
+    environment:
+      - DATABASE_URL=/data/aif.sqlite
+      - LOG_LEVEL=debug
+    volumes:
+      - db-data:/data
+      - ${PROJECTS_DIR:-./projects}:${PROJECTS_MOUNT:-/home/www}
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   db-data:
   claude-auth:
