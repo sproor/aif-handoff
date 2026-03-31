@@ -27,23 +27,36 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">{description}</p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={disabled}>
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={variant === "destructive" ? "destructive" : "default"}
-            size="sm"
-            onClick={onConfirm}
-            disabled={disabled}
-          >
-            {confirmLabel}
-          </Button>
-        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!disabled) onConfirm();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{description}</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={disabled}
+            >
+              {cancelLabel}
+            </Button>
+            <Button
+              type="submit"
+              variant={variant === "destructive" ? "destructive" : "default"}
+              size="sm"
+              disabled={disabled}
+            >
+              {confirmLabel}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
