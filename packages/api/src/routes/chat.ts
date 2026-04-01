@@ -199,10 +199,10 @@ chatRouter.get("/sessions", async (c) => {
     log.warn({ err }, "Failed to list SDK sessions, returning DB sessions only");
   }
 
-  // Merge and sort by updatedAt DESC
-  const all = [...dbSessions, ...sdkSessions].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
+  // Merge, sort by updatedAt DESC, cap at 20
+  const all = [...dbSessions, ...sdkSessions]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 20);
 
   return c.json(all);
 });

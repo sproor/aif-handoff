@@ -699,13 +699,14 @@ export function findChatSessionById(id: string): ChatSessionRow | undefined {
   return getDb().select().from(chatSessions).where(eq(chatSessions.id, id)).get();
 }
 
-export function listChatSessions(projectId: string): ChatSessionRow[] {
-  log.debug("listChatSessions projectId=%s", projectId);
+export function listChatSessions(projectId: string, limit = 20): ChatSessionRow[] {
+  log.debug("listChatSessions projectId=%s limit=%d", projectId, limit);
   return getDb()
     .select()
     .from(chatSessions)
     .where(eq(chatSessions.projectId, projectId))
     .orderBy(desc(chatSessions.updatedAt))
+    .limit(limit)
     .all();
 }
 
