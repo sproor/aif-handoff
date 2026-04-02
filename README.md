@@ -156,8 +156,7 @@ A `.devcontainer/` config is also included for JetBrains / VS Code.
 | `npm run dev`      | Start all services with hot reload            |
 | `npm run build`    | Build all packages                            |
 | `npm test`         | Run all tests (Vitest)                        |
-| `npm run init`     | Run AI Factory init and database setup        |
-| `npm run aif:init` | Initialize AI Factory context in this project |
+| `npm run init`     | Initialize database                           |
 | `npm run db:setup` | Build shared package and initialize SQLite DB |
 | `npm run db:push`  | Push schema changes via drizzle-kit           |
 

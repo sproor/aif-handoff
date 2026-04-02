@@ -26,7 +26,7 @@
     "packages/*"
   ],
   "scripts": {
-    "init": "npm run aif:init && npm run db:setup",
+    "init": "npm run db:setup",
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
@@ -34,7 +34,6 @@
     "coverage": "turbo test -- --coverage",
     "db:setup": "npm run db:setup --workspace=@aif/shared",
     "db:push": "turbo db:push --filter=@aif/shared",
-    "aif:init": "ai-factory init",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
