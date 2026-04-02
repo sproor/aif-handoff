@@ -12,12 +12,17 @@ export function parseChatActions(content: string): ParsedMessage {
   const actions: ChatAction[] = [];
   const text = content.replace(ACTION_REGEX, (_match, json: string) => {
     try {
-      const parsed = JSON.parse(json) as { title?: string; description?: string };
+      const parsed = JSON.parse(json) as {
+        title?: string;
+        description?: string;
+        isFix?: boolean;
+      };
       if (parsed.title) {
         const action: ChatActionCreateTask = {
           type: "create_task",
           title: String(parsed.title).slice(0, 500),
           description: String(parsed.description ?? "").slice(0, 10_000),
+          ...(parsed.isFix ? { isFix: true } : {}),
         };
         actions.push(action);
       }

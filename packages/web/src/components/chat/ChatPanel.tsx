@@ -50,7 +50,12 @@ function CreateTaskCard({
 
   const handleCreate = () => {
     createTask.mutate(
-      { projectId, title: action.title, description: action.description },
+      {
+        projectId,
+        title: action.title,
+        description: action.description,
+        ...(action.isFix ? { isFix: true } : {}),
+      },
       {
         onSuccess: () => {
           setCreated(true);
@@ -64,7 +69,7 @@ function CreateTaskCard({
     <div className="mx-3 my-1.5 rounded border border-emerald-500/40 bg-emerald-500/10 p-3">
       <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 mb-2">
         <ClipboardList className="h-3.5 w-3.5" />
-        New Task
+        {action.isFix ? "Bug Fix" : "New Task"}
       </div>
       <p className="text-sm font-medium text-foreground">{action.title}</p>
       {action.description && (
@@ -121,7 +126,7 @@ const MessageBubble = memo(function MessageBubble({
         </div>
         <div
           className={cn(
-            "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+            "max-w-[85%] rounded-lg px-3 py-2 text-sm break-words",
             isUser ? "bg-blue-600/15 text-foreground" : "bg-violet-600/15 text-foreground",
           )}
         >
@@ -157,6 +162,7 @@ export function ChatPanel({ isOpen, projectId, taskId, onClose }: ChatPanelProps
     sessions,
     activeSessionId,
     setActiveSessionId,
+    pinActiveSession,
     clearActiveSession,
     deleteSession,
     renameSession,
@@ -218,6 +224,7 @@ export function ChatPanel({ isOpen, projectId, taskId, onClose }: ChatPanelProps
 
   const handleSend = () => {
     if (!input.trim() || isStreaming) return;
+    pinActiveSession();
     void sendMessage(input);
     setInput("");
   };

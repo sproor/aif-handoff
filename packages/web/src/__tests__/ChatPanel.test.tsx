@@ -32,6 +32,8 @@ vi.mock("@/hooks/useChatSessions", () => ({
     isLoading: false,
     activeSessionId: null,
     setActiveSessionId: vi.fn(),
+    pinActiveSession: vi.fn(),
+    clearActiveSession: vi.fn(),
     createSession: vi.fn(),
     deleteSession: vi.fn(),
     renameSession: vi.fn(),

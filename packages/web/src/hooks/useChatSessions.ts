@@ -13,11 +13,19 @@ export function useChatSessions(projectId: string | null) {
     queryKey: ["chatSessions", projectId],
     queryFn: () => api.listChatSessions(projectId!),
     enabled: !!projectId,
+    staleTime: 2_000,
   });
 
   // Auto-select the most recent session when sessions load and none is active
   const resolvedSessionId =
     activeSessionId ?? (newChatMode ? null : (sessionsQuery.data?.[0]?.id ?? null));
+
+  // Pin the auto-selected session so it doesn't shift when the sessions list refetches
+  const pinActiveSession = useCallback(() => {
+    if (!activeSessionId && resolvedSessionId) {
+      setActiveSessionId(resolvedSessionId);
+    }
+  }, [activeSessionId, resolvedSessionId]);
 
   // Listen for WS events to invalidate sessions
   useEffect(() => {
@@ -101,6 +109,7 @@ export function useChatSessions(projectId: string | null) {
     isLoading: sessionsQuery.isLoading,
     activeSessionId: resolvedSessionId,
     setActiveSessionId: selectSession,
+    pinActiveSession,
     clearActiveSession,
     createSession,
     deleteSession,

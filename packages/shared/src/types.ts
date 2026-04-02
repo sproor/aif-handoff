@@ -282,6 +282,7 @@ export interface ChatActionCreateTask {
   type: "create_task";
   title: string;
   description: string;
+  isFix?: boolean;
 }
 
 export type ChatAction = ChatActionCreateTask;

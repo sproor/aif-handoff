@@ -20,6 +20,7 @@ export function useChat(
   const conversationIdRef = useRef<string | null>(null);
   const accumulatorRef = useRef("");
   const streamErrorHandledRef = useRef(false);
+  const isStreamingRef = useRef(false);
   const currentSessionIdRef = useRef<string | null>(null);
 
   // Load messages when sessionId changes
@@ -46,12 +47,21 @@ export function useChat(
     if (sessionId === currentSessionIdRef.current) return;
 
     currentSessionIdRef.current = sessionId;
+    // Reset streaming state when switching between sessions
+    isStreamingRef.current = false;
+    queueMicrotask(() => setIsStreaming(false));
     console.debug("[useChat] Loading session messages sessionId=%s", sessionId);
 
     api
       .getChatSessionMessages(sessionId)
       .then((msgs) => {
         if (currentSessionIdRef.current !== sessionId) return;
+        // Don't overwrite messages if a send is in-flight — the user already
+        // sees their message and possibly streaming tokens.
+        if (isStreamingRef.current) {
+          console.debug("[useChat] Skipping session load — streaming in progress");
+          return;
+        }
         console.debug("[useChat] Session changed, loaded %d messages", msgs.length);
         setMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
         conversationIdRef.current = null;
@@ -85,6 +95,7 @@ export function useChat(
       if (conversationId !== conversationIdRef.current) return;
       accumulatorRef.current = "";
       setIsStreaming(false);
+      isStreamingRef.current = false;
       console.debug("[useChat] Stream done for conversation:", conversationId);
     };
 
@@ -94,6 +105,7 @@ export function useChat(
       streamErrorHandledRef.current = true;
       accumulatorRef.current = "";
       setIsStreaming(false);
+      isStreamingRef.current = false;
       setChatErrorCode(code ?? null);
       setMessages((prev) => [
         ...prev,
@@ -128,15 +140,19 @@ export function useChat(
       const userMessage: ChatMessage = { role: "user", content: text.trim() };
       setMessages((prev) => [...prev, userMessage]);
       setIsStreaming(true);
+      isStreamingRef.current = true;
       setChatErrorCode(null);
       accumulatorRef.current = "";
       streamErrorHandledRef.current = false;
       if (explore) setExplore(false);
 
+      // Prefer the prop sessionId (authoritative) over the ref (can be stale)
+      const effectiveSessionId = sessionId ?? currentSessionIdRef.current;
+
       console.debug("[useChat] Sending message:", {
         projectId,
         conversationId: newConversationId,
-        sessionId: currentSessionIdRef.current,
+        sessionId: effectiveSessionId,
         explore,
       });
 
@@ -146,7 +162,7 @@ export function useChat(
           message: text.trim(),
           clientId,
           conversationId: newConversationId,
-          sessionId: currentSessionIdRef.current ?? undefined,
+          sessionId: effectiveSessionId ?? undefined,
           explore,
           ...(taskId ? { taskId } : {}),
         });
@@ -155,9 +171,18 @@ export function useChat(
         if (result.sessionId && !currentSessionIdRef.current) {
           currentSessionIdRef.current = result.sessionId;
         }
+
+        // Safety net: HTTP response arrives after server sends chat:done.
+        // If WS missed the done event (reconnect, race), ensure streaming stops.
+        if (isStreamingRef.current) {
+          console.debug("[useChat] HTTP completed but still streaming — forcing stop");
+          setIsStreaming(false);
+          isStreamingRef.current = false;
+        }
       } catch (err) {
         console.error("[useChat] Failed to send message:", err);
         setIsStreaming(false);
+        isStreamingRef.current = false;
         if (!streamErrorHandledRef.current) {
           const message =
             err instanceof Error ? err.message : "Failed to get a response. Please try again.";
@@ -166,7 +191,7 @@ export function useChat(
         }
       }
     },
-    [projectId, isStreaming, explore, taskId],
+    [projectId, sessionId, isStreaming, explore, taskId],
   );
 
   const clearMessages = useCallback(() => {

@@ -40,9 +40,11 @@ You have special capabilities in this chat:
 
 1. CREATE TASK: When the user asks to create a task (based on conversation, from scratch, etc.), output a structured block:
 <!--ACTION:CREATE_TASK-->
-{"title": "Short task title", "description": "Detailed task description with context from the conversation"}
+{"title": "Short task title", "description": "Detailed task description with context from the conversation", "isFix": false}
 <!--/ACTION-->
 Include this block in your response along with a brief explanation of the task you're creating. The user will see a confirmation card and can approve it.
+
+Set "isFix" to true when the user describes a bug, defect, or asks to fix/repair/debug something (e.g. "исправь", "fix", "починить", "баг", "не работает", "сломалось"). When isFix is true, the agent pipeline will use the bug-fix workflow instead of the feature workflow. Default is false for new features, improvements, and refactoring.
 
 2. TASK SUMMARY: When the user asks to summarize what was done on the current task (or any task you have context for), generate a concise summary covering: what was planned, what was implemented, review results, and current status.
 `.trim();
@@ -294,6 +296,30 @@ chatRouter.get("/sessions/:id/messages", async (c) => {
   if (!session) {
     return c.json({ error: "Chat session not found" }, 404);
   }
+
+  // Linked SDK session — messages live in SDK, not DB
+  if (session.agentSessionId) {
+    try {
+      const sdkMessages = await getSessionMessages(session.agentSessionId);
+      const messages: ChatSessionMessage[] = sdkMessages
+        .filter((m) => m.type === "user" || m.type === "assistant")
+        .map((m) => ({
+          id: m.uuid,
+          sessionId: id,
+          role: m.type as "user" | "assistant",
+          content: extractMessageContent(m.message),
+          createdAt: new Date().toISOString(),
+        }))
+        .filter((m) => m.content.trim() !== "");
+      return c.json(messages);
+    } catch (err) {
+      log.warn(
+        { err, agentSessionId: session.agentSessionId },
+        "Failed to load SDK messages, falling back to DB",
+      );
+    }
+  }
+
   const rows = listChatMessages(id);
   return c.json(rows.map(toChatMessageResponse));
 });
@@ -344,13 +370,33 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
 
   // Resolve or auto-create a chat session
   let chatSessionId = inputSessionId ?? null;
-  if (chatSessionId) {
+
+  // SDK sessions (sdk:*) are virtual — create a real DB session linked to the agent session
+  if (chatSessionId?.startsWith("sdk:")) {
+    const sdkAgentSessionId = chatSessionId.slice(4);
+    log.debug("Resolving SDK session sdk:%s to DB session", sdkAgentSessionId);
+    const autoTitle = message.slice(0, 80);
+    const session = createChatSession({ projectId, title: autoTitle });
+    if (session) {
+      chatSessionId = session.id;
+      updateChatSession(session.id, { agentSessionId: sdkAgentSessionId });
+      log.debug(
+        "Created DB session %s linked to SDK agent session %s",
+        chatSessionId,
+        sdkAgentSessionId,
+      );
+      broadcast({ type: "chat:session_created", payload: toChatSessionResponse(session) });
+    } else {
+      chatSessionId = null;
+    }
+  } else if (chatSessionId) {
     const existing = findChatSessionById(chatSessionId);
     if (!existing) {
       log.debug("Provided sessionId=%s not found, will auto-create", chatSessionId);
       chatSessionId = null;
     }
   }
+
   if (!chatSessionId) {
     const autoTitle = message.slice(0, 80);
     const session = createChatSession({ projectId, title: autoTitle });
@@ -376,18 +422,19 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
     "Chat request started",
   );
 
-  // Persist user message
-  if (chatSessionId) {
+  // Look up agentSessionId from DB for multi-turn resume
+  const dbSession = chatSessionId ? findChatSessionById(chatSessionId) : null;
+  const resumeAgentSessionId = dbSession?.agentSessionId ?? undefined;
+  // Persist user message (skip for linked SDK sessions — SDK stores via resume)
+  if (chatSessionId && !resumeAgentSessionId) {
     const userMsg = createChatMessage({ sessionId: chatSessionId, role: "user", content: message });
     log.debug("Persisting user message sessionId=%s messageId=%s", chatSessionId, userMsg?.id);
+  }
+  if (chatSessionId) {
     updateChatSessionTimestamp(chatSessionId);
   }
 
   try {
-    // Look up agentSessionId from DB for multi-turn resume
-    const dbSession = chatSessionId ? findChatSessionById(chatSessionId) : null;
-    const resumeAgentSessionId = dbSession?.agentSessionId ?? undefined;
-
     const prompt = explore ? `/aif-explore ${message}` : message;
 
     const stream = query({
@@ -438,7 +485,7 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
           updateChatSession(chatSessionId, { agentSessionId });
         }
         log.debug(
-          { agentSessionId, conversationId: chatConversationId },
+          { agentSessionId, resumeAgentSessionId, conversationId: chatConversationId },
           "Chat agent session initialized",
         );
       }
@@ -522,15 +569,17 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
       }
     }
 
-    // Persist assistant response
-    if (chatSessionId && fullAssistantResponse) {
+    // Persist assistant response (skip for linked SDK sessions — SDK stores via resume)
+    if (chatSessionId && fullAssistantResponse && !resumeAgentSessionId) {
       createChatMessage({
         sessionId: chatSessionId,
         role: "assistant",
         content: fullAssistantResponse,
       });
-      updateChatSessionTimestamp(chatSessionId);
       log.debug("Persisting assistant response sessionId=%s", chatSessionId);
+    }
+    if (chatSessionId) {
+      updateChatSessionTimestamp(chatSessionId);
     }
 
     // Signal completion
