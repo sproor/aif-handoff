@@ -323,7 +323,7 @@ tasksRouter.delete("/:id", (c) => {
 // POST /tasks/:id/events — apply a human action through state machine
 tasksRouter.post("/:id/events", zValidator("json", taskEventSchema as any), async (c) => {
   const { id } = c.req.param();
-  const { event, deletePlanFile } = c.req.valid("json");
+  const { event, deletePlanFile, commitOnApprove } = c.req.valid("json");
   const existing = findTaskById(id);
   if (!existing) {
     return c.json({ error: "Task not found" }, 404);
@@ -350,6 +350,13 @@ tasksRouter.post("/:id/events", zValidator("json", taskEventSchema as any), asyn
     if (handled.broadcastType === "task:moved") {
       broadcast({ type: "agent:wake", payload: { id: handled.task.id } });
     }
+
+    // Fire-and-forget: run /aif-commit when approved with commit checkbox
+    if (event === "approve_done" && commitOnApprove) {
+      const { runCommitQuery } = await import("../services/commitGeneration.js");
+      void runCommitQuery(handled.task.projectId);
+    }
+
     return c.json(toTaskResponse(handled.task));
   } catch (error) {
     log.error({ taskId: id, event, error }, "Task event handling failed");

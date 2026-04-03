@@ -300,6 +300,7 @@ describe("TaskDetail", () => {
       id: "detail-done",
       event: "approve_done",
       deletePlanFile: false,
+      commitOnApprove: true,
     });
     expect(onClose).toHaveBeenCalled();
   });
@@ -310,13 +311,15 @@ describe("TaskDetail", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     expect(screen.getByText("Delete plan file (FIX_PLAN.md)")).toBeDefined();
-    fireEvent.click(screen.getByRole("checkbox"));
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[0]); // delete plan file checkbox
     fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[1]);
 
     expect(mutateTaskEvent).toHaveBeenCalledWith({
       id: "detail-done-fix",
       event: "approve_done",
       deletePlanFile: true,
+      commitOnApprove: true,
     });
     expect(onClose).toHaveBeenCalled();
   });

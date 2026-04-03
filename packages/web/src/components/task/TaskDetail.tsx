@@ -224,6 +224,14 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
             />
             Delete plan file ({task?.isFix ? "FIX_PLAN.md" : "PLAN.md"})
           </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={actions.commitOnApprove}
+              onChange={(event) => actions.setCommitOnApprove(event.target.checked)}
+            />
+            Create commit (/aif-commit)
+          </label>
           <div className="mt-4 flex justify-end gap-2">
             <Button
               variant="ghost"
@@ -231,6 +239,7 @@ export function TaskDetail({ taskId, onClose }: TaskDetailProps) {
               onClick={() => {
                 actions.setShowApproveDoneConfirm(false);
                 actions.setDeletePlanOnApprove(false);
+                actions.setCommitOnApprove(true);
               }}
             >
               Cancel

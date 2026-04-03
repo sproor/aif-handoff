@@ -76,6 +76,7 @@ export const updateTaskSchema = z.object({
 export const taskEventSchema = z.object({
   event: z.enum(TASK_EVENTS),
   deletePlanFile: z.boolean().optional(),
+  commitOnApprove: z.boolean().optional(),
 });
 
 export const createTaskCommentSchema = z.object({

@@ -1053,6 +1053,61 @@ describe("tasks API", () => {
       expect(existsSync(planFilePath)).toBe(true);
     });
 
+    it("should fire /aif-commit query when commitOnApprove=true", async () => {
+      const db = testDb.current;
+      insertTestProject(db);
+      db.insert(tasks)
+        .values({
+          id: "ev-commit-1",
+          projectId: "test-project",
+          title: "Done commit task",
+          status: "done",
+        })
+        .run();
+
+      mockQuery.mockClear();
+
+      const res = await app.request("/tasks/ev-commit-1/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "approve_done", commitOnApprove: true }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.status).toBe("verified");
+      // query is fire-and-forget via dynamic import — wait for it to resolve
+      await new Promise((r) => setTimeout(r, 200));
+      expect(mockQuery).toHaveBeenCalled();
+      const callArgs = mockQuery.mock.calls[mockQuery.mock.calls.length - 1][0];
+      expect(callArgs.prompt).toBe("/aif-commit");
+    });
+
+    it("should not fire /aif-commit query when commitOnApprove is not set", async () => {
+      const db = testDb.current;
+      insertTestProject(db);
+      db.insert(tasks)
+        .values({
+          id: "ev-commit-2",
+          projectId: "test-project",
+          title: "Done no commit",
+          status: "done",
+        })
+        .run();
+
+      mockQuery.mockClear();
+
+      const res = await app.request("/tasks/ev-commit-2/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "approve_done" }),
+      });
+
+      expect(res.status).toBe(200);
+      await new Promise((r) => setTimeout(r, 200));
+      expect(mockQuery).not.toHaveBeenCalled();
+    });
+
     it("should send done task to implementing with rework flag on request_changes", async () => {
       const db = testDb.current;
       db.insert(tasks)

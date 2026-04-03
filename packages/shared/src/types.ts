@@ -170,6 +170,7 @@ export type TaskEvent = (typeof TASK_EVENTS)[number];
 export interface TaskEventInput {
   event: TaskEvent;
   deletePlanFile?: boolean;
+  commitOnApprove?: boolean;
 }
 
 /** PATCH /tasks/:id/position body */

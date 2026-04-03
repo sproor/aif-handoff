@@ -253,6 +253,7 @@ export function useTaskDetailActions(task: Task | undefined, onClose: () => void
   // --- Approve done confirm ---
   const [showApproveDoneConfirm, setShowApproveDoneConfirm] = useState(false);
   const [deletePlanOnApprove, setDeletePlanOnApprove] = useState(false);
+  const [commitOnApprove, setCommitOnApprove] = useState(true);
 
   const handleApproveDone = () => {
     if (!task) return;
@@ -260,9 +261,11 @@ export function useTaskDetailActions(task: Task | undefined, onClose: () => void
       id: task.id,
       event: "approve_done",
       deletePlanFile: deletePlanOnApprove,
+      commitOnApprove,
     });
     setShowApproveDoneConfirm(false);
     setDeletePlanOnApprove(false);
+    setCommitOnApprove(true);
     onClose();
   };
 
@@ -336,6 +339,8 @@ export function useTaskDetailActions(task: Task | undefined, onClose: () => void
     setShowApproveDoneConfirm,
     deletePlanOnApprove,
     setDeletePlanOnApprove,
+    commitOnApprove,
+    setCommitOnApprove,
     handleApproveDone,
     // action buttons
     handleActionClick,

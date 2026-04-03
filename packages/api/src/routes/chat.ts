@@ -533,7 +533,7 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
     const stream = query({
       prompt,
       options: {
-        pathToClaudeCodeExecutable: CLAUDE_PATH,
+        ...(CLAUDE_PATH ? { pathToClaudeCodeExecutable: CLAUDE_PATH } : {}),
         cwd: project.rootPath,
         env: { ...process.env, HANDOFF_MODE: "1", ...(taskId ? { HANDOFF_TASK_ID: taskId } : {}) },
         permissionMode: getEnv().AGENT_BYPASS_PERMISSIONS ? "bypassPermissions" : "acceptEdits",

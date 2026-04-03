@@ -146,7 +146,7 @@ async function runQueryAttempt(
         HANDOFF_TASK_ID: taskId,
         ...(skipReview ? { HANDOFF_SKIP_REVIEW: "1" } : {}),
       },
-      pathToClaudeCodeExecutable: getClaudePath(),
+      ...(getClaudePath() ? { pathToClaudeCodeExecutable: getClaudePath() } : {}),
       settingSources: ["project"],
       permissionMode: bypassPermissions ? "bypassPermissions" : "acceptEdits",
       ...(bypassPermissions ? { allowDangerouslySkipPermissions: true } : {}),

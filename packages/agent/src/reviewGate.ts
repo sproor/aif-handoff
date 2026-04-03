@@ -36,7 +36,7 @@ Rules:
     options: {
       cwd: input.projectRoot,
       env: { ...process.env, HANDOFF_MODE: "1", HANDOFF_TASK_ID: input.taskId },
-      pathToClaudeCodeExecutable: getClaudePath(),
+      ...(getClaudePath() ? { pathToClaudeCodeExecutable: getClaudePath() } : {}),
       settingSources: ["project"],
       ...modelOption("haiku"),
       systemPrompt: {

@@ -189,7 +189,7 @@ export const api = {
   taskEvent(
     id: string,
     event: TaskEvent,
-    options?: Pick<TaskEventInput, "deletePlanFile">,
+    options?: Pick<TaskEventInput, "deletePlanFile" | "commitOnApprove">,
   ): Promise<Task> {
     console.debug("[api] POST /tasks/%s/events →", id, event);
     const timeoutMs = event === "fast_fix" ? FAST_FIX_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
@@ -197,7 +197,11 @@ export const api = {
       `${API_BASE}/${id}/events`,
       {
         method: "POST",
-        body: JSON.stringify({ event, deletePlanFile: options?.deletePlanFile }),
+        body: JSON.stringify({
+          event,
+          deletePlanFile: options?.deletePlanFile,
+          commitOnApprove: options?.commitOnApprove,
+        }),
       },
       timeoutMs,
     );
@@ -307,9 +311,7 @@ export const api = {
     });
   },
 
-  sendChatMessage(
-    input: ChatRequest,
-  ): Promise<{
+  sendChatMessage(input: ChatRequest): Promise<{
     conversationId: string;
     sessionId: string | null;
     attachments?: ChatMessageAttachment[];
