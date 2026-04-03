@@ -7,9 +7,32 @@ const BOOLEAN_FALSE_VALUES = new Set(["0", "false", "no", "off"]);
 
 const ACTIVITY_LOG_MODES = ["sync", "batch"] as const;
 
+function parseRuntimeModules(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
 const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_BASE_URL: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_BASE_URL: z.string().optional(),
+  CODEX_CLI_PATH: z.string().optional(),
+  AGENTAPI_BASE_URL: z.string().optional(),
+  AIF_RUNTIME_MODULES: z.preprocess(parseRuntimeModules, z.array(z.string())).default([]),
   PORT: z.coerce.number().default(3009),
   POLL_INTERVAL_MS: z.coerce.number().default(30000),
   AGENT_STAGE_STALE_TIMEOUT_MS: z.coerce.number().default(90 * 60 * 1000),
@@ -88,6 +111,33 @@ export type Env = z.infer<typeof envSchema>;
 
 let _env: Env | null = null;
 
+function warnOnRuntimeDefaults(env: Env): void {
+  if (env.OPENAI_BASE_URL && !env.OPENAI_API_KEY) {
+    log.warn(
+      { hasOpenAiBaseUrl: true, hasOpenAiApiKey: false },
+      "OPENAI_BASE_URL is configured without OPENAI_API_KEY",
+    );
+  }
+
+  if (env.AGENTAPI_BASE_URL && !env.OPENAI_API_KEY) {
+    log.warn(
+      { hasAgentApiBaseUrl: true, hasOpenAiApiKey: false },
+      "AGENTAPI_BASE_URL is configured without OPENAI_API_KEY",
+    );
+  }
+
+  const deduplicatedModules = [...new Set(env.AIF_RUNTIME_MODULES)];
+  if (deduplicatedModules.length !== env.AIF_RUNTIME_MODULES.length) {
+    log.warn(
+      {
+        configuredCount: env.AIF_RUNTIME_MODULES.length,
+        deduplicatedCount: deduplicatedModules.length,
+      },
+      "AIF_RUNTIME_MODULES contains duplicate entries",
+    );
+  }
+}
+
 export function getEnv(): Env {
   if (_env) return _env;
 
@@ -99,7 +149,17 @@ export function getEnv(): Env {
   }
 
   _env = result.data;
+  warnOnRuntimeDefaults(_env);
   log.debug({ port: _env.PORT, dbUrl: _env.DATABASE_URL }, "Environment loaded");
+  log.info(
+    {
+      runtimeModulesCount: _env.AIF_RUNTIME_MODULES.length,
+      hasOpenAiBaseUrl: Boolean(_env.OPENAI_BASE_URL),
+      hasAgentApiBaseUrl: Boolean(_env.AGENTAPI_BASE_URL),
+      hasCodexCliPath: Boolean(_env.CODEX_CLI_PATH),
+    },
+    "Runtime environment defaults resolved",
+  );
   log.info({ mode: _env.ACTIVITY_LOG_MODE }, "Activity logging mode selected");
   log.debug(
     {

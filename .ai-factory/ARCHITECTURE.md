@@ -27,6 +27,14 @@ packages/
 │       ├── index.ts         # Public API (Node.js)
 │       └── browser.ts       # Public API (browser-safe subset)
 │
+├── runtime/             # @aif/runtime — runtime/provider abstraction module
+│   └── src/
+│       ├── types.ts         # Runtime contracts (adapter/input/output/session/capabilities)
+│       ├── registry.ts      # Runtime registration + module loading
+│       ├── module.ts        # registerRuntimeModule export resolver
+│       ├── errors.ts        # Runtime domain errors
+│       └── index.ts         # Public runtime API
+│
 ├── data/                # @aif/data — centralized data-access module
 │   └── src/
 │       └── index.ts         # Repository-style DB operations
@@ -69,13 +77,17 @@ Module dependency graph (arrows = "depends on"):
 web ──→ shared (browser export)
 data ──→ shared
 api ──→ data
+api ──→ runtime
 agent ──→ data
+agent ──→ runtime
 ```
 
 ### Allowed
 
 - ✅ `data` → import from `@aif/shared`
+- ✅ `runtime` → standalone abstraction package used by `api` and `agent`
 - ✅ `api`, `agent` → import from `@aif/data` for DB operations
+- ✅ `api`, `agent` → import runtime contracts and registry from `@aif/runtime`
 - ✅ `api`, `agent`, `web` → import shared contracts/types from `@aif/shared` as needed
 - ✅ `web` → import from `@aif/shared/browser` (browser-safe subset)
 - ✅ `web` → call `api` via HTTP/WebSocket at runtime (not import)
@@ -85,6 +97,7 @@ agent ──→ data
 
 - ❌ `shared` → import from `api`, `web`, or `agent` (shared is the foundation, no upward deps)
 - ❌ `data` → import from `api`, `web`, or `agent`
+- ❌ `runtime` → import from `api`, `agent`, or `web` (runtime is shared infra, no upward deps)
 - ❌ `api` → import from `web` or `agent` (API is independent)
 - ❌ `web` → import from `api` or `agent` (UI communicates via HTTP/WS only)
 - ❌ `agent` → import from `api` or `web` (agent runtime integration is via HTTP, not code imports)
@@ -95,6 +108,7 @@ agent ──→ data
 
 - **web ↔ api:** HTTP REST calls + WebSocket for real-time updates
 - **api/agent → data:** DB operations through centralized repository layer
+- **api/agent → runtime:** Runtime/provider selection and adapter execution via shared registry APIs
 - **data → shared:** Uses shared schema, DB helpers, and data contracts
 - **agent → api:** HTTP REST calls for WebSocket broadcasts (best-effort via notifier.ts)
 - **agent → Claude Agent SDK:** Spawns subagent processes using `.claude/agents/` definitions
