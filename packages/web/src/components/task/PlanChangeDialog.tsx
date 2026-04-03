@@ -1,5 +1,5 @@
-import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { PlanChangeMode } from "./useTaskDetailActions";
@@ -103,7 +103,7 @@ export function PlanChangeDialog({
           </div>
           {isSubmitting && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Spinner size="sm" />
               {MODE_LOADING_LABELS[mode]}
             </div>
           )}
@@ -120,7 +120,7 @@ export function PlanChangeDialog({
           <Button size="sm" onClick={onSubmit} disabled={!comment.trim() || isSubmitting}>
             {isSubmitting ? (
               <>
-                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                <Spinner size="sm" className="mr-1" />
                 Sending...
               </>
             ) : (
