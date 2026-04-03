@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Markdown } from "@/components/ui/markdown";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ToggleButton } from "@/components/ui/toggle-button";
+import { Collapsible } from "@/components/ui/collapsible";
 
 interface TaskPlanProps {
   plan: string | null;
@@ -15,12 +15,13 @@ export function TaskPlan({ plan }: TaskPlanProps) {
   }
 
   return (
-    <div className="space-y-3">
-      <ToggleButton expanded={expanded} onClick={() => setExpanded((prev) => !prev)}>
-        {expanded ? "Hide plan" : "Show plan"}
-      </ToggleButton>
-
-      {expanded && <Markdown content={plan} className="text-sm text-foreground/90" />}
-    </div>
+    <Collapsible
+      open={expanded}
+      onOpenChange={setExpanded}
+      trigger={expanded ? "Hide plan" : "Show plan"}
+      className="space-y-3"
+    >
+      <Markdown content={plan} className="text-sm text-foreground/90" />
+    </Collapsible>
   );
 }
