@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Plus, X, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Radio } from "@/components/ui/radio";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateTask } from "@/hooks/useTasks";
 import { useProjects } from "@/hooks/useProjects";
@@ -196,13 +198,12 @@ export function AddTaskForm({ projectId }: Props) {
             Task type
           </p>
           <label className="flex items-start gap-2 text-xs text-muted-foreground">
-            <input
-              type="radio"
+            <Radio
               name="taskType"
               aria-label="Standard"
               checked={!isFix}
               onChange={() => setIsFix(false)}
-              className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
+              className="mt-0.5 h-3.5 w-3.5"
             />
             <span>
               <span className="font-medium text-foreground">Standard</span>
@@ -210,13 +211,12 @@ export function AddTaskForm({ projectId }: Props) {
             </span>
           </label>
           <label className="flex items-start gap-2 text-xs text-muted-foreground">
-            <input
-              type="radio"
+            <Radio
               name="taskType"
               aria-label="Fix"
               checked={isFix}
               onChange={() => setIsFix(true)}
-              className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
+              className="mt-0.5 h-3.5 w-3.5"
             />
             <span>
               <span className="font-medium text-foreground">Fix</span>
@@ -227,12 +227,11 @@ export function AddTaskForm({ projectId }: Props) {
           </label>
         </div>
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
+          <Checkbox
             aria-label="Auto mode"
             checked={autoMode}
             onChange={(e) => setAutoMode(e.target.checked)}
-            className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
+            className="mt-0.5 h-3.5 w-3.5"
           />
           <span>
             <span className="font-medium text-foreground">Auto mode</span>
@@ -266,22 +265,20 @@ export function AddTaskForm({ projectId }: Props) {
                 ) : (
                   <div className="flex gap-3">
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <input
-                        type="radio"
+                      <Radio
                         name="plannerMode"
                         checked={plannerMode === "full"}
                         onChange={() => handleModeChange("full")}
-                        className="h-3.5 w-3.5 accent-[var(--color-primary)]"
+                        className="h-3.5 w-3.5"
                       />
                       <span className="font-medium text-foreground">Full</span>
                     </label>
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <input
-                        type="radio"
+                      <Radio
                         name="plannerMode"
                         checked={plannerMode === "fast"}
                         onChange={() => handleModeChange("fast")}
-                        className="h-3.5 w-3.5 accent-[var(--color-primary)]"
+                        className="h-3.5 w-3.5"
                       />
                       <span className="font-medium text-foreground">Fast</span>
                     </label>
@@ -320,20 +317,18 @@ export function AddTaskForm({ projectId }: Props) {
               </div>
               <div className="flex gap-4">
                 <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={planDocs}
                     onChange={(e) => setPlanDocs(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-[var(--color-primary)]"
+                    className="h-3.5 w-3.5"
                   />
                   <span className="font-medium text-foreground">Docs</span>
                 </label>
                 <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={planTests}
                     onChange={(e) => setPlanTests(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-[var(--color-primary)]"
+                    className="h-3.5 w-3.5"
                   />
                   <span className="font-medium text-foreground">Tests</span>
                 </label>
@@ -344,11 +339,10 @@ export function AddTaskForm({ projectId }: Props) {
       )}
       <div className="space-y-1">
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={skipReview}
             onChange={(e) => setSkipReview(e.target.checked)}
-            className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
+            className="mt-0.5 h-3.5 w-3.5"
           />
           <span>
             <span className="font-medium text-foreground">Skip review</span>
@@ -356,11 +350,10 @@ export function AddTaskForm({ projectId }: Props) {
           </span>
         </label>
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={useSubagents}
             onChange={(e) => setUseSubagents(e.target.checked)}
-            className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
+            className="mt-0.5 h-3.5 w-3.5"
           />
           <span>
             <span className="font-medium text-foreground">Use subagents</span>

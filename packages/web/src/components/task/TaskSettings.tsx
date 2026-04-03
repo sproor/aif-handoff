@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Radio } from "@/components/ui/radio";
 import { useProjects } from "@/hooks/useProjects";
 import type { Task, UpdateTaskInput } from "@aif/shared/browser";
 
@@ -102,15 +104,15 @@ export function TaskSettings({ task, onSave }: Props) {
       </div>
 
       <div className="space-y-2">
-        <Checkbox label="Auto mode" checked={autoMode} onChange={setAutoMode}>
+        <CheckboxField label="Auto mode" checked={autoMode} onChange={setAutoMode}>
           AI moves tasks between statuses automatically.
-        </Checkbox>
-        <Checkbox label="Skip review" checked={skipReview} onChange={setSkipReview}>
+        </CheckboxField>
+        <CheckboxField label="Skip review" checked={skipReview} onChange={setSkipReview}>
           After implementation, move directly to done without code review.
-        </Checkbox>
-        <Checkbox label="Use subagents" checked={useSubagents} onChange={setUseSubagents}>
+        </CheckboxField>
+        <CheckboxField label="Use subagents" checked={useSubagents} onChange={setUseSubagents}>
           Run via custom subagents (plan-coordinator, implement-coordinator, sidecars).
-        </Checkbox>
+        </CheckboxField>
       </div>
 
       {autoMode && (
@@ -145,22 +147,20 @@ export function TaskSettings({ task, onSave }: Props) {
           ) : (
             <div className="flex gap-3">
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <input
-                  type="radio"
+                <Radio
                   name="plannerModeDetail"
                   checked={plannerMode === "full"}
                   onChange={() => setPlannerMode("full")}
-                  className="h-3.5 w-3.5 accent-[var(--color-primary)]"
+                  className="h-3.5 w-3.5"
                 />
                 <span className="font-medium text-foreground">Full</span>
               </label>
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <input
-                  type="radio"
+                <Radio
                   name="plannerModeDetail"
                   checked={plannerMode === "fast"}
                   onChange={() => setPlannerMode("fast")}
-                  className="h-3.5 w-3.5 accent-[var(--color-primary)]"
+                  className="h-3.5 w-3.5"
                 />
                 <span className="font-medium text-foreground">Fast</span>
               </label>
@@ -185,8 +185,8 @@ export function TaskSettings({ task, onSave }: Props) {
             )}
           </div>
           <div className="flex gap-4">
-            <Checkbox label="Docs" checked={planDocs} onChange={setPlanDocs} />
-            <Checkbox label="Tests" checked={planTests} onChange={setPlanTests} />
+            <CheckboxField label="Docs" checked={planDocs} onChange={setPlanDocs} />
+            <CheckboxField label="Tests" checked={planTests} onChange={setPlanTests} />
           </div>
         </div>
       )}
@@ -207,12 +207,11 @@ function Checkbox({
 }) {
   return (
     <label className="flex items-start gap-2 text-xs text-muted-foreground">
-      <input
-        type="checkbox"
+      <Checkbox
         aria-label={label}
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-primary)]"
+        className="mt-0.5 h-3.5 w-3.5"
       />
       <span>
         <span className="font-medium text-foreground">{label}</span>
