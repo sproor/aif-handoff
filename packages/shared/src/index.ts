@@ -32,6 +32,7 @@ export {
   type WsEventType,
   type WsEvent,
   type ChatMessage,
+  type ChatMessageAttachment,
   type ChatRequest,
   type ChatStreamTokenPayload,
   type ChatDonePayload,

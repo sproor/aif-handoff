@@ -199,5 +199,33 @@ describe("chat sessions data layer", () => {
         createdAt: msg!.createdAt,
       });
     });
+
+    it("includes attachments when present", () => {
+      const session = createChatSession({ projectId: "proj-1" });
+      const attachments = [
+        { name: "file.txt", mimeType: "text/plain", size: 100, path: ".ai-factory/files/chat/s1/file.txt" },
+        { name: "image.png", mimeType: "image/png", size: 5000, path: ".ai-factory/files/chat/s1/image.png" },
+      ];
+      const msg = createChatMessage({
+        sessionId: session!.id,
+        role: "user",
+        content: "Check these",
+        attachments,
+      });
+      const response = toChatMessageResponse(msg!);
+      expect(response.content).toBe("Check these");
+      expect(response.attachments).toEqual(attachments);
+    });
+
+    it("omits attachments when not stored", () => {
+      const session = createChatSession({ projectId: "proj-1" });
+      const msg = createChatMessage({
+        sessionId: session!.id,
+        role: "user",
+        content: "No files",
+      });
+      const response = toChatMessageResponse(msg!);
+      expect(response.attachments).toBeUndefined();
+    });
   });
 });

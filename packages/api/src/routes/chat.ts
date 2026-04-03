@@ -6,7 +6,7 @@ import {
   getSessionMessages,
   getSessionInfo,
 } from "@anthropic-ai/claude-agent-sdk";
-import { logger, getEnv, findClaudePath } from "@aif/shared";
+import { logger, getEnv, findClaudePath, type ChatMessageAttachment } from "@aif/shared";
 
 const CLAUDE_PATH = findClaudePath();
 import type { ChatSession, ChatSessionMessage } from "@aif/shared";
@@ -25,6 +25,8 @@ import {
   toChatMessageResponse,
 } from "@aif/data";
 import { chatRequestSchema, createChatSessionSchema, updateChatSessionSchema } from "../schemas.js";
+import { persistAttachments } from "../services/attachmentPersistence.js";
+import { readAttachment } from "../services/attachmentStorage.js";
 import { broadcast, sendToClient } from "../ws.js";
 import type { WsEvent, Task } from "@aif/shared";
 
@@ -123,15 +125,25 @@ function stripCommandTags(text: string): string {
 }
 
 /**
+ * Strip the "Attached files:" block appended to user prompts.
+ * SDK stores the full prompt; we only want the original user message.
+ */
+function stripAttachedFilesBlock(text: string): string {
+  const idx = text.indexOf("\n\n---\nAttached files:\n");
+  return idx !== -1 ? text.slice(0, idx) : text;
+}
+
+/**
  * Extract human-readable text from an SDK SessionMessage.message field.
  * Returns only user-visible text — skips thinking, tool_use, tool_result blocks.
  */
 function extractMessageContent(message: unknown): string {
-  if (typeof message === "string") return stripCommandTags(message);
+  if (typeof message === "string") return stripAttachedFilesBlock(stripCommandTags(message));
   if (!message || typeof message !== "object") return "";
 
   const msg = message as Record<string, unknown>;
-  if (typeof msg.content === "string") return stripCommandTags(msg.content);
+  if (typeof msg.content === "string")
+    return stripAttachedFilesBlock(stripCommandTags(msg.content));
 
   if (Array.isArray(msg.content)) {
     const parts: string[] = [];
@@ -144,7 +156,7 @@ function extractMessageContent(message: unknown): string {
       }
       // Skip thinking, tool_use, tool_result — intermediate turns, not user-visible
     }
-    return parts.join("\n\n").trim();
+    return stripAttachedFilesBlock(parts.join("\n\n").trim());
   }
 
   return "";
@@ -301,15 +313,31 @@ chatRouter.get("/sessions/:id/messages", async (c) => {
   if (session.agentSessionId) {
     try {
       const sdkMessages = await getSessionMessages(session.agentSessionId);
+      // Load DB messages to merge attachment metadata (DB stores what SDK doesn't)
+      const dbMessages = listChatMessages(id);
+      const dbAttachmentsByContent = new Map<string, ChatSessionMessage["attachments"]>();
+      for (const dbMsg of dbMessages) {
+        const resp = toChatMessageResponse(dbMsg);
+        if (resp.attachments?.length) {
+          dbAttachmentsByContent.set(resp.content, resp.attachments);
+        }
+      }
+
       const messages: ChatSessionMessage[] = sdkMessages
         .filter((m) => m.type === "user" || m.type === "assistant")
-        .map((m) => ({
-          id: m.uuid,
-          sessionId: id,
-          role: m.type as "user" | "assistant",
-          content: extractMessageContent(m.message),
-          createdAt: new Date().toISOString(),
-        }))
+        .map((m) => {
+          const content = extractMessageContent(m.message);
+          return {
+            id: m.uuid,
+            sessionId: id,
+            role: m.type as "user" | "assistant",
+            content,
+            ...(dbAttachmentsByContent.has(content)
+              ? { attachments: dbAttachmentsByContent.get(content) }
+              : {}),
+            createdAt: new Date().toISOString(),
+          };
+        })
         .filter((m) => m.content.trim() !== "");
       return c.json(messages);
     } catch (err) {
@@ -348,6 +376,38 @@ chatRouter.delete("/sessions/:id", async (c) => {
   deleteChatSession(id);
   broadcast({ type: "chat:session_deleted", payload: { id } });
   return c.body(null, 204);
+});
+
+// GET /chat/sessions/:sessionId/attachments/:filename — download a chat attachment
+chatRouter.get("/sessions/:sessionId/attachments/:filename", async (c) => {
+  const { sessionId, filename } = c.req.param();
+  const session = findChatSessionById(sessionId);
+  if (!session) return c.json({ error: "Chat session not found" }, 404);
+
+  const project = findProjectById(session.projectId);
+  if (!project) return c.json({ error: "Project not found" }, 404);
+
+  const messages = listChatMessages(sessionId);
+  const decodedFilename = decodeURIComponent(filename);
+
+  // Search all messages for the attachment
+  for (const msg of messages) {
+    const response = toChatMessageResponse(msg);
+    const attachment = response.attachments?.find((a) => a.name === decodedFilename);
+    if (attachment?.path) {
+      try {
+        const buffer = await readAttachment(project.rootPath, attachment.path);
+        c.header("Content-Type", attachment.mimeType || "application/octet-stream");
+        c.header("Content-Disposition", `attachment; filename="${attachment.name}"`);
+        c.header("Content-Length", String(buffer.length));
+        return new Response(new Uint8Array(buffer), { headers: c.res.headers });
+      } catch {
+        return c.json({ error: "Attachment file not found on disk" }, 404);
+      }
+    }
+  }
+
+  return c.json({ error: "Attachment not found" }, 404);
 });
 
 // POST /chat
@@ -425,8 +485,9 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
   // Look up agentSessionId from DB for multi-turn resume
   const dbSession = chatSessionId ? findChatSessionById(chatSessionId) : null;
   const resumeAgentSessionId = dbSession?.agentSessionId ?? undefined;
-  // Persist user message (skip for linked SDK sessions — SDK stores via resume)
-  if (chatSessionId && !resumeAgentSessionId) {
+  // Persist user message in DB (always, even for resumed SDK sessions — DB stores attachment metadata).
+  // For messages with attachments, persistence happens after file save in the try block below.
+  if (chatSessionId && !attachments?.length) {
     const userMsg = createChatMessage({ sessionId: chatSessionId, role: "user", content: message });
     log.debug("Persisting user message sessionId=%s messageId=%s", chatSessionId, userMsg?.id);
   }
@@ -435,21 +496,38 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
   }
 
   try {
-    // Build prompt with optional file attachments
+    // Persist file attachments to disk and build prompt with paths
     let prompt = explore ? `/aif-explore ${message}` : message;
-    if (attachments?.length) {
-      const fileContext = attachments
-        .map(
-          (
-            f: { name: string; mimeType: string; size: number; content: string | null },
-            i: number,
-          ) => {
-            const preview = f.content ? f.content.slice(0, 4000) : "[binary file]";
-            return `File ${i + 1}: ${f.name} (${f.mimeType}, ${f.size} bytes)\n${preview}`;
-          },
-        )
+    let savedAttachments: ChatMessageAttachment[] | undefined;
+    if (attachments?.length && chatSessionId) {
+      const persisted = await persistAttachments(attachments, {
+        projectRoot: project.rootPath,
+        chatSessionId,
+      });
+      savedAttachments = persisted
+        .filter((a) => a.path)
+        .map((a) => ({ name: a.name, mimeType: a.mimeType, size: a.size, path: a.path }));
+      const fileContext = persisted
+        .map((f, i) => {
+          const location = f.path ? `Path: ${f.path}` : "[metadata only]";
+          return `File ${i + 1}: ${f.name} (${f.mimeType}, ${f.size} bytes)\n${location}`;
+        })
         .join("\n\n");
       prompt = `${prompt}\n\n---\nAttached files:\n${fileContext}`;
+    }
+    // Persist user message with attachment metadata (after files are saved)
+    if (chatSessionId && attachments?.length) {
+      const userMsg = createChatMessage({
+        sessionId: chatSessionId,
+        role: "user",
+        content: message,
+        attachments: savedAttachments,
+      });
+      log.debug(
+        "Persisting user message with attachments sessionId=%s messageId=%s",
+        chatSessionId,
+        userMsg?.id,
+      );
     }
 
     const stream = query({
@@ -606,7 +684,11 @@ chatRouter.post("/", zValidator("json", chatRequestSchema as any), async (c) => 
 
     log.info({ conversationId: chatConversationId }, "Chat request ended");
 
-    return c.json({ conversationId: chatConversationId, sessionId: chatSessionId });
+    return c.json({
+      conversationId: chatConversationId,
+      sessionId: chatSessionId,
+      ...(savedAttachments?.length ? { attachments: savedAttachments } : {}),
+    });
   } catch (err) {
     log.error({ err, conversationId: chatConversationId }, "Chat request failed");
     const classified = classifyChatError(err);

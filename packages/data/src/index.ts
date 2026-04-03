@@ -17,6 +17,7 @@ import {
   type ChatSessionMessage,
   type ChatSessionRow,
   type ChatMessageRow,
+  type ChatMessageAttachment,
 } from "@aif/shared";
 import { getDb } from "@aif/shared/server";
 
@@ -666,11 +667,20 @@ export function toChatSessionResponse(row: ChatSessionRow): ChatSession {
 }
 
 export function toChatMessageResponse(row: ChatMessageRow): ChatSessionMessage {
+  let attachments: ChatMessageAttachment[] | undefined;
+  if (row.attachments) {
+    try {
+      attachments = JSON.parse(row.attachments) as ChatMessageAttachment[];
+    } catch {
+      // ignore malformed JSON
+    }
+  }
   return {
     id: row.id,
     sessionId: row.sessionId,
     role: row.role,
     content: row.content,
+    ...(attachments?.length ? { attachments } : {}),
     createdAt: row.createdAt,
   };
 }
@@ -733,6 +743,7 @@ export function createChatMessage(input: {
   sessionId: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: ChatMessageAttachment[];
 }): ChatMessageRow | undefined {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -744,6 +755,7 @@ export function createChatMessage(input: {
       sessionId: input.sessionId,
       role: input.role,
       content: input.content,
+      attachments: input.attachments?.length ? JSON.stringify(input.attachments) : null,
       createdAt: now,
     })
     .run();

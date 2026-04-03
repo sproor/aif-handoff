@@ -8,10 +8,15 @@ const mockSendMessage = vi.fn();
 const mockClearMessages = vi.fn();
 const mockSetExplore = vi.fn();
 
-let mockMessages: { role: string; content: string }[] = [];
+let mockMessages: {
+  role: string;
+  content: string;
+  attachments?: { name: string; mimeType: string; size: number; path?: string }[];
+}[] = [];
 let mockIsStreaming = false;
 let mockExplore = false;
 let mockChatErrorCode: string | null = null;
+let mockActiveSessionId: string | null = null;
 
 vi.mock("@/hooks/useChat", () => ({
   useChat: () => ({
@@ -30,7 +35,7 @@ vi.mock("@/hooks/useChatSessions", () => ({
   useChatSessions: () => ({
     sessions: [],
     isLoading: false,
-    activeSessionId: null,
+    activeSessionId: mockActiveSessionId,
     setActiveSessionId: vi.fn(),
     pinActiveSession: vi.fn(),
     clearActiveSession: vi.fn(),
@@ -56,6 +61,7 @@ describe("ChatPanel", () => {
     mockIsStreaming = false;
     mockExplore = false;
     mockChatErrorCode = null;
+    mockActiveSessionId = null;
     mockSendMessage.mockClear();
     mockClearMessages.mockClear();
     mockSetExplore.mockClear();
@@ -178,5 +184,105 @@ describe("ChatPanel", () => {
     );
     const panel = container.firstChild as HTMLElement;
     expect(panel.className).toContain("-translate-x-full");
+  });
+
+  it("renders a single attachment badge on a user message", () => {
+    mockMessages = [
+      {
+        role: "user",
+        content: "Check this file",
+        attachments: [{ name: "report.csv", mimeType: "text/csv", size: 1234 }],
+      },
+    ];
+    render(<ChatPanel isOpen={true} projectId="p-1" taskId={null} onClose={mockOnClose} />);
+    expect(screen.getByText("report.csv")).toBeDefined();
+  });
+
+  it("renders multiple attachment badges on a user message", () => {
+    mockMessages = [
+      {
+        role: "user",
+        content: "Check these files",
+        attachments: [
+          { name: "photo1.jpg", mimeType: "image/jpeg", size: 50000 },
+          { name: "photo2.png", mimeType: "image/png", size: 60000 },
+          { name: "data.json", mimeType: "application/json", size: 1500 },
+        ],
+      },
+    ];
+    render(<ChatPanel isOpen={true} projectId="p-1" taskId={null} onClose={mockOnClose} />);
+    expect(screen.getByText("photo1.jpg")).toBeDefined();
+    expect(screen.getByText("photo2.png")).toBeDefined();
+    expect(screen.getByText("data.json")).toBeDefined();
+  });
+
+  it("renders attachment as download link when path is present and session is active", () => {
+    mockActiveSessionId = "session-123";
+    mockMessages = [
+      {
+        role: "user",
+        content: "Here is a file",
+        attachments: [
+          {
+            name: "doc.pdf",
+            mimeType: "application/pdf",
+            size: 9999,
+            path: ".ai-factory/files/chat/session-123/doc.pdf",
+          },
+        ],
+      },
+    ];
+    render(<ChatPanel isOpen={true} projectId="p-1" taskId={null} onClose={mockOnClose} />);
+    const link = screen.getByText("doc.pdf").closest("a");
+    expect(link).toBeDefined();
+    expect(link!.getAttribute("href")).toBe("/chat/sessions/session-123/attachments/doc.pdf");
+    expect(link!.getAttribute("download")).toBe("doc.pdf");
+  });
+
+  it("renders attachment as plain badge when no path (just sent, not yet saved)", () => {
+    mockMessages = [
+      {
+        role: "user",
+        content: "Uploading",
+        attachments: [{ name: "new-file.txt", mimeType: "text/plain", size: 100 }],
+      },
+    ];
+    render(<ChatPanel isOpen={true} projectId="p-1" taskId={null} onClose={mockOnClose} />);
+    const el = screen.getByText("new-file.txt");
+    expect(el.closest("a")).toBeNull();
+    expect(el.closest("span")).toBeDefined();
+  });
+
+  it("renders attachment as plain badge when no active session", () => {
+    mockActiveSessionId = null;
+    mockMessages = [
+      {
+        role: "user",
+        content: "No session",
+        attachments: [
+          {
+            name: "file.txt",
+            mimeType: "text/plain",
+            size: 50,
+            path: ".ai-factory/files/chat/x/file.txt",
+          },
+        ],
+      },
+    ];
+    render(<ChatPanel isOpen={true} projectId="p-1" taskId={null} onClose={mockOnClose} />);
+    const el = screen.getByText("file.txt");
+    expect(el.closest("a")).toBeNull();
+  });
+
+  it("does not render attachment section when message has no attachments", () => {
+    mockMessages = [{ role: "user", content: "Plain message" }];
+    const { container } = render(
+      <ChatPanel isOpen={true} projectId="p-1" taskId={null} onClose={mockOnClose} />,
+    );
+    // No paperclip icons in message bubbles (only in input area)
+    const messageBubbles = container.querySelectorAll(".bg-blue-600\\/15");
+    expect(messageBubbles.length).toBe(1);
+    // The message bubble should not contain any nested flex-wrap div for attachments
+    expect(messageBubbles[0].querySelector(".flex-wrap")).toBeNull();
   });
 });

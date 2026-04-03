@@ -51,6 +51,13 @@ function commentAttachmentDir(projectRoot: string, taskId: string, commentId: st
 }
 
 /**
+ * Build the deterministic directory path for a chat session's attachments.
+ */
+function chatAttachmentDir(projectRoot: string, chatSessionId: string): string {
+  return join(projectRoot, FILES_DIR, "chat", chatSessionId);
+}
+
+/**
  * Validate that a resolved path stays within the expected base directory.
  * Prevents path traversal attacks.
  */
@@ -82,8 +89,9 @@ export function resolveAttachmentPath(projectRoot: string, relativePath: string)
 
 export interface SaveAttachmentInput {
   projectRoot: string;
-  taskId: string;
+  taskId?: string;
   commentId?: string;
+  chatSessionId?: string;
   filename: string;
   content: Buffer;
 }
@@ -103,9 +111,16 @@ export interface SaveAttachmentResult {
  */
 export async function saveAttachment(input: SaveAttachmentInput): Promise<SaveAttachmentResult> {
   const sanitizedName = sanitizeFilename(input.filename);
-  const dir = input.commentId
-    ? commentAttachmentDir(input.projectRoot, input.taskId, input.commentId)
-    : taskAttachmentDir(input.projectRoot, input.taskId);
+  let dir: string;
+  if (input.chatSessionId) {
+    dir = chatAttachmentDir(input.projectRoot, input.chatSessionId);
+  } else if (input.commentId && input.taskId) {
+    dir = commentAttachmentDir(input.projectRoot, input.taskId, input.commentId);
+  } else if (input.taskId) {
+    dir = taskAttachmentDir(input.projectRoot, input.taskId);
+  } else {
+    throw new Error("Either taskId or chatSessionId is required");
+  }
 
   const absolutePath = join(dir, sanitizedName);
   assertWithinBase(absolutePath, join(input.projectRoot, FILES_DIR));

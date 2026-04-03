@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type {
   ChatMessage,
   ChatAttachment,
+  ChatMessageAttachment,
   ChatStreamTokenPayload,
   ChatDonePayload,
   ChatErrorPayload,
@@ -89,7 +90,13 @@ export function useChat(
           return;
         }
         console.debug("[useChat] Session changed, loaded %d messages", msgs.length);
-        setMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
+        setMessages(
+          msgs.map((m) => ({
+            role: m.role,
+            content: m.content,
+            ...(m.attachments?.length ? { attachments: m.attachments } : {}),
+          })),
+        );
         setChatErrorCode(null);
       })
       .catch((err) => {
@@ -191,7 +198,16 @@ export function useChat(
       // Use sessionId or conversationId as stream key (for sessions not yet created)
       const streamKey = effectiveSessionId ?? newConversationId;
 
-      const userMessage: ChatMessage = { role: "user", content: text.trim() };
+      const messageAttachments: ChatMessageAttachment[] | undefined = attachments?.map((a) => ({
+        name: a.name,
+        mimeType: a.mimeType,
+        size: a.size,
+      }));
+      const userMessage: ChatMessage = {
+        role: "user",
+        content: text.trim(),
+        ...(messageAttachments?.length ? { attachments: messageAttachments } : {}),
+      };
       const newMessages = [...messages, userMessage];
 
       // Register active stream
@@ -240,6 +256,26 @@ export function useChat(
               sessionStreamsRef.current.set(result.sessionId, state);
             }
             activeStreamsRef.current.set(newConversationId, result.sessionId);
+          }
+        }
+
+        // Update user message attachments with server-resolved paths (for download links)
+        if (result.attachments?.length) {
+          setMessages((prev) =>
+            prev.map((m) => (m === userMessage ? { ...m, attachments: result.attachments } : m)),
+          );
+          // Also update in-flight stream state
+          const activeStreamKey = activeStreamsRef.current.get(newConversationId) ?? streamKey;
+          const state = sessionStreamsRef.current.get(activeStreamKey);
+          if (state) {
+            state.messages = state.messages.map((m) =>
+              m.role === "user" &&
+              m.content === userMessage.content &&
+              m.attachments &&
+              !m.attachments[0]?.path
+                ? { ...m, attachments: result.attachments }
+                : m,
+            );
           }
         }
 

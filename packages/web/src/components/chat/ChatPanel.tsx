@@ -120,11 +120,13 @@ function CreateTaskCard({
 const MessageBubble = memo(function MessageBubble({
   message,
   projectId,
+  sessionId,
   onTaskCreated,
   onOpenTask,
 }: {
   message: ChatMessage;
   projectId: string;
+  sessionId: string | null;
   onTaskCreated: () => void;
   onOpenTask?: (taskId: string) => void;
 }) {
@@ -155,6 +157,31 @@ const MessageBubble = memo(function MessageBubble({
               <p className="whitespace-pre-wrap">{displayContent}</p>
             ) : (
               <Markdown content={displayContent} className="text-sm" />
+            )}
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {message.attachments.map((att, idx) =>
+                  att.path && sessionId ? (
+                    <a
+                      key={idx}
+                      href={`/chat/sessions/${sessionId}/attachments/${encodeURIComponent(att.name)}`}
+                      download={att.name}
+                      className="inline-flex items-center gap-1 rounded bg-black/10 dark:bg-white/10 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Paperclip className="h-3 w-3" />
+                      {att.name}
+                    </a>
+                  ) : (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 rounded bg-black/10 dark:bg-white/10 px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      <Paperclip className="h-3 w-3" />
+                      {att.name}
+                    </span>
+                  ),
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -427,6 +454,7 @@ export function ChatPanel({ isOpen, projectId, taskId, onClose, onOpenTask }: Ch
               key={i}
               message={msg}
               projectId={projectId ?? ""}
+              sessionId={activeSessionId}
               onTaskCreated={handleTaskCreated}
               onOpenTask={onOpenTask}
             />

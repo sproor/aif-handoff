@@ -250,11 +250,19 @@ export interface UpdateChatSessionInput {
   title?: string;
 }
 
+export interface ChatMessageAttachment {
+  name: string;
+  mimeType: string;
+  size: number;
+  path?: string;
+}
+
 export interface ChatSessionMessage {
   id: string;
   sessionId: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: ChatMessageAttachment[];
   createdAt: string;
 }
 
@@ -263,6 +271,7 @@ export interface ChatSessionMessage {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  attachments?: ChatMessageAttachment[];
 }
 
 export interface ChatAttachment {

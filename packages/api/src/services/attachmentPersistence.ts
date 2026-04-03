@@ -35,13 +35,19 @@ interface PersistedAttachment {
  */
 export async function persistAttachments(
   attachments: IncomingAttachment[],
-  entityContext: { projectRoot: string; taskId: string; commentId?: string },
+  entityContext: {
+    projectRoot: string;
+    taskId?: string;
+    commentId?: string;
+    chatSessionId?: string;
+  },
 ): Promise<PersistedAttachment[]> {
   if (attachments.length === 0) return [];
 
   log.info(
     {
       taskId: entityContext.taskId,
+      chatSessionId: entityContext.chatSessionId,
       commentId: entityContext.commentId,
       count: attachments.length,
       totalBytes: attachments.reduce((sum, a) => sum + a.size, 0),
@@ -87,6 +93,7 @@ export async function persistAttachments(
         projectRoot: entityContext.projectRoot,
         taskId: entityContext.taskId,
         commentId: entityContext.commentId,
+        chatSessionId: entityContext.chatSessionId,
         filename: attachment.name,
         content: buffer,
       });

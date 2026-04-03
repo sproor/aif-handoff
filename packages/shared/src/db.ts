@@ -121,6 +121,7 @@ function ensureTables(sqlite: Database.Database): void {
       session_id TEXT NOT NULL,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
+      attachments TEXT,
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )
   `);
@@ -168,6 +169,11 @@ const MIGRATIONS: Migration[] = [
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
       );
     `,
+  },
+  {
+    version: 3,
+    description: "Add attachments column to chat_messages",
+    sql: "ALTER TABLE chat_messages ADD COLUMN attachments TEXT",
   },
 ];
 

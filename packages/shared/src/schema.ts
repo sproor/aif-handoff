@@ -115,6 +115,7 @@ export const chatMessages = sqliteTable("chat_messages", {
   sessionId: text("session_id").notNull(),
   role: text("role").$type<"user" | "assistant">().notNull(),
   content: text("content").notNull(),
+  attachments: text("attachments"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),

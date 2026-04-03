@@ -13,6 +13,7 @@ import type {
   CreateChatSessionInput,
   UpdateChatSessionInput,
   ChatSessionMessage,
+  ChatMessageAttachment,
 } from "@aif/shared/browser";
 
 export interface AifConfig {
@@ -308,13 +309,21 @@ export const api = {
 
   sendChatMessage(
     input: ChatRequest,
-  ): Promise<{ conversationId: string; sessionId: string | null }> {
+  ): Promise<{
+    conversationId: string;
+    sessionId: string | null;
+    attachments?: ChatMessageAttachment[];
+  }> {
     console.debug("[api] POST /chat", {
       projectId: input.projectId,
       explore: input.explore,
       sessionId: input.sessionId,
     });
-    return request<{ conversationId: string; sessionId: string | null }>(
+    return request<{
+      conversationId: string;
+      sessionId: string | null;
+      attachments?: ChatMessageAttachment[];
+    }>(
       "/chat",
       {
         method: "POST",
