@@ -194,7 +194,7 @@ export function TaskSettings({ task, onSave }: Props) {
   );
 }
 
-function Checkbox({
+function CheckboxField({
   label,
   checked,
   onChange,
@@ -210,7 +210,7 @@ function Checkbox({
       <Checkbox
         aria-label={label}
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={(e) => onChange((e.target as HTMLInputElement).checked)}
         className="mt-0.5 h-3.5 w-3.5"
       />
       <span>

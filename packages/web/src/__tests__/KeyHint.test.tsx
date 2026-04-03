@@ -4,8 +4,8 @@ import { KeyHint } from "@/components/ui/key-hint";
 
 describe("KeyHint", () => {
   it("renders key labels", () => {
-    render(<KeyHint keys={["Cmd", "K"]} />);
-    const kbds = screen.getAllByRole("generic").filter((el) => el.tagName === "KBD");
+    const { container } = render(<KeyHint keys={["Cmd", "K"]} />);
+    const kbds = container.querySelectorAll("kbd");
     expect(kbds).toHaveLength(2);
     expect(kbds[0].textContent).toBe("Cmd");
     expect(kbds[1].textContent).toBe("K");

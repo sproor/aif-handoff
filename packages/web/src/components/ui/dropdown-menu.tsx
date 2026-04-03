@@ -60,11 +60,16 @@ interface DropdownMenuTriggerProps {
 function DropdownMenuTrigger({ children, asChild }: DropdownMenuTriggerProps) {
   const { open, onOpenChange, triggerRef } = useDropdownMenu();
 
-  if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
-      ref: triggerRef,
-      onClick: () => onOpenChange(!open),
-    });
+  if (asChild) {
+    return (
+      <span
+        ref={triggerRef as React.RefObject<HTMLSpanElement>}
+        onClick={() => onOpenChange(!open)}
+        className="contents"
+      >
+        {children}
+      </span>
+    );
   }
 
   return (
