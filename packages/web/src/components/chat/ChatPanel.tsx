@@ -313,6 +313,7 @@ export function ChatPanel({ isOpen, projectId, taskId, onClose, onOpenTask }: Ch
     newSession();
     clearActiveSession();
     console.debug("[ChatPanel] New chat started");
+    setTimeout(() => textareaRef.current?.focus(), 50);
   }, [newSession, clearActiveSession]);
 
   const handleSessionSelect = useCallback(
