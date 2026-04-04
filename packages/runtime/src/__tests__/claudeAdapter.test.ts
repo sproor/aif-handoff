@@ -58,6 +58,27 @@ function delayedSuccess(delayMs: number, result: string) {
   };
 }
 
+function immediateSuccess(result: string) {
+  return async function* () {
+    yield {
+      type: "system",
+      subtype: "init",
+      session_id: "runtime-session-1",
+    };
+    yield {
+      type: "result",
+      subtype: "success",
+      result,
+      usage: {
+        input_tokens: 10,
+        output_tokens: 5,
+        total_tokens: 15,
+      },
+      total_cost_usd: 0.12,
+    };
+  };
+}
+
 function missingSessionFailure(sessionId: string) {
   return async function* () {
     yield {
@@ -321,7 +342,7 @@ describe("Claude runtime adapter", () => {
   });
 
   it("forwards resume mode and session id to Claude query options", async () => {
-    queryMock.mockImplementation(delayedSuccess(0, "resumed"));
+    queryMock.mockImplementation(immediateSuccess("resumed"));
     const adapter = createClaudeRuntimeAdapter();
 
     const result = await adapter.resume!({
