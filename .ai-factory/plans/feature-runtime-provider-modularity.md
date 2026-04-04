@@ -75,6 +75,8 @@ Patterns and constraints to preserve:
 - [x] Task 12: Keep MCP and external task clients in sync with the new contracts
 - [x] Task 13: Add regression coverage for migrations, adapters, capability gates, and UI selection
 - [x] Task 14: Update architecture/config docs and run full verification
+- [x] Task 15: Remove residual Claude SDK imports from `@aif/agent`
+- [x] Task 16: Raise `@aif/runtime` coverage to meet the 70% package rule
 
 ### Phase 1: Runtime Foundation
 
@@ -173,6 +175,20 @@ Patterns and constraints to preserve:
 **Deliverable:** Document the runtime registry architecture, profile model, supported adapters, env/auth setup, capability differences, and the module contract for custom runtimes/providers. Include concrete examples for Claude and Codex profiles. Finish by running `npm run lint`, `npm test`, and `npm run build`, then fix any fallout before considering the feature complete.
 **Logging requirements:** No additional runtime logging. Verification commands should be documented in the commit/PR narrative, not as a separate report task.
 **Dependency notes:** Depends on Task 13.
+
+### Phase 8: Post-Verification Fixups
+
+#### Task 15: Remove residual Claude SDK imports from `@aif/agent`
+**Files:** `packages/agent/src/hooks.ts`, `packages/agent/src/subagentQuery.ts`, related agent tests if typings need updates
+**Deliverable:** Complete the Task 6 decoupling goal by removing remaining direct `@anthropic-ai/claude-agent-sdk` imports from `@aif/agent` (including type-only imports). Keep hook wiring behavior unchanged by using runtime-neutral hook callback typing at the agent boundary.
+**Logging requirements:** No new runtime logging required.
+**Dependency notes:** Follow-up fix after Tasks 6-7 verification.
+
+#### Task 16: Raise `@aif/runtime` coverage to meet the 70% package rule
+**Files:** `packages/runtime/src/__tests__/codexAdapter.test.ts`, `packages/runtime/src/__tests__/codexCli.test.ts` (new), `packages/runtime/src/__tests__/codexAgentApi.test.ts` (new), optional targeted test updates in runtime adapter tests
+**Deliverable:** Add regression tests for Codex CLI and AgentAPI execution/validation/model-discovery paths so `@aif/runtime` package coverage (at minimum statements/lines) is >= 70%, in line with `.ai-factory/RULES.md`.
+**Logging requirements:** Test-only assertions; no additional production logging.
+**Dependency notes:** Follow-up fix after Task 13 verification.
 
 ## Commit Plan
 

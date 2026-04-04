@@ -1,4 +1,3 @@
-import type { HookCallback } from "@anthropic-ai/claude-agent-sdk";
 import {
   findTaskById,
   getTaskSessionId,
@@ -24,7 +23,13 @@ import {
   type RuntimeWorkflowSpec,
 } from "@aif/runtime";
 import { getEnv, logger } from "@aif/shared";
-import { createActivityLogger, createSubagentLogger, getClaudePath, logActivity } from "./hooks.js";
+import {
+  createActivityLogger,
+  createSubagentLogger,
+  getClaudePath,
+  logActivity,
+  type RuntimeHookCallback,
+} from "./hooks.js";
 import { PROJECT_SCOPE_SYSTEM_APPEND } from "./constants.js";
 import {
   createClaudeStderrCollector,
@@ -55,7 +60,7 @@ export interface SubagentQueryOptions {
   /** Optional slash command fallback used when agent definitions are unavailable. */
   fallbackSlashCommand?: string;
   /** Additional SubagentStart hooks beyond the default activity/subagent loggers. */
-  extraSubagentStartHooks?: HookCallback[];
+  extraSubagentStartHooks?: RuntimeHookCallback[];
   /** Whether to skip code review stage (implementing → done instead of implementing → review). */
   skipReview?: boolean;
   /** Optional override for tests/tuning: timeout waiting for first message from query stream. */
@@ -295,7 +300,7 @@ function buildAdapterMetadata(
   const explicitAbort =
     options.abortController ?? getActiveStageAbortController(options.taskId) ?? undefined;
 
-  const subagentStartHooks: HookCallback[] = [createSubagentLogger(options.taskId)];
+  const subagentStartHooks: RuntimeHookCallback[] = [createSubagentLogger(options.taskId)];
   for (const hook of options.extraSubagentStartHooks ?? []) {
     subagentStartHooks.push(hook);
   }
