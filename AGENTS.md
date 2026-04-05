@@ -112,6 +112,13 @@ data/                    # SQLite database files (gitignored)
 - **Pencil sync required for new components.** If a new UI component is genuinely needed, its design must be synced with the Pencil design system (`.pen` files) using the `pencil` MCP tools (`batch_design`, `get_guidelines`). Never add a visual component to the codebase without a corresponding Pencil representation.
 - **UI primitives live in `packages/web/src/components/ui/`.** Domain-specific compositions belong in their feature folder (e.g. `components/task/`, `components/kanban/`).
 
+## Docker Sync Rule
+
+- **Docker config must stay in sync with packages.** When adding a new package under `packages/` or introducing new inter-package dependencies, update the Docker configuration accordingly:
+  - `.docker/Dockerfile` — add build stages, `COPY` directives, and build steps for the new package.
+  - `docker-compose.yml` / `docker-compose.production.yml` — add or update services, volumes, and dependency links as needed.
+  - Verify the Docker build still succeeds after changes: `docker compose build`.
+
 ## Project Rules
 
 - Every package must maintain at least 70% test coverage (measured by @vitest/coverage-v8)
