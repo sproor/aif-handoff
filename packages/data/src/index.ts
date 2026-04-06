@@ -1076,7 +1076,9 @@ export function resolveEffectiveRuntimeProfile(input: {
   const projectId = input.projectId ?? task?.projectId;
   const project = projectId ? findProjectById(projectId) : undefined;
 
-  const taskRuntimeProfileId = mode !== "chat" ? (task?.runtimeProfileId ?? null) : null;
+  // Task-level override only applies to "task" mode (implementation).
+  // For plan/review/chat, the per-stage project defaults take precedence.
+  const taskRuntimeProfileId = mode === "task" ? (task?.runtimeProfileId ?? null) : null;
 
   let projectRuntimeProfileId: string | null = null;
   if (mode === "chat") {
