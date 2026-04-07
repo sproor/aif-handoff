@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 /** Find the Claude CLI executable path from common install locations. */
 export function findClaudePath(): string | undefined {
@@ -22,14 +22,29 @@ export function findClaudePath(): string | undefined {
           resolve(homeDir, ".local/bin/claude.cmd"),
         ]
       : [
-          resolve(homeDir, ".local/bin/claude"),
           "/usr/local/bin/claude",
+          resolve(homeDir, ".local/bin/claude"),
           "/opt/homebrew/bin/claude",
           resolve(homeDir, ".npm-global/bin/claude"),
           "/usr/bin/claude",
         ];
   for (const p of candidates) {
     if (existsSync(p)) return p;
+  }
+
+  // Fallback: check npm global prefix (covers Docker and custom npm prefix setups)
+  try {
+    const npmPrefix = execFileSync("npm", ["prefix", "-g"], {
+      encoding: "utf8",
+      timeout: 3_000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (npmPrefix) {
+      const npmCandidate = join(npmPrefix, "bin", "claude");
+      if (existsSync(npmCandidate)) return npmCandidate;
+    }
+  } catch {
+    // npm not available or timed out
   }
 
   // Fallback: ask PATH where claude lives (covers npm/npx global installs, nvm, etc.)

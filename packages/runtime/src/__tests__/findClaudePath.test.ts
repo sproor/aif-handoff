@@ -32,8 +32,8 @@ function getPlatformCandidates(env: NodeJS.ProcessEnv): string[] {
     ];
   }
   return [
-    resolve(homeDir, ".local/bin/claude"),
     "/usr/local/bin/claude",
+    resolve(homeDir, ".local/bin/claude"),
     "/opt/homebrew/bin/claude",
     resolve(homeDir, ".npm-global/bin/claude"),
     "/usr/bin/claude",
