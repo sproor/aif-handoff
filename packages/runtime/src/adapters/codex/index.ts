@@ -24,6 +24,11 @@ import {
   validateCodexAgentApiConnection,
   type CodexAgentApiLogger,
 } from "./api.js";
+import {
+  enrichCodexDiscoveredModels,
+  getDefaultCodexModels,
+  listCodexAppServerModels,
+} from "./modelDiscovery.js";
 import { runCodexSdk, type CodexSdkLogger } from "./sdk.js";
 import { listCodexSdkSessions, getCodexSdkSession, listCodexSdkSessionEvents } from "./sessions.js";
 import { classifyCodexRuntimeError } from "./errors.js";
@@ -36,36 +41,6 @@ export interface CreateCodexRuntimeAdapterOptions {
   displayName?: string;
   logger?: CodexRuntimeAdapterLogger;
 }
-
-const DEFAULT_CODEX_MODELS: RuntimeModel[] = [
-  {
-    id: "gpt-5.4",
-    label: "GPT-5.4",
-    supportsStreaming: true,
-    metadata: {
-      supportsEffort: true,
-      supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
-    },
-  },
-  {
-    id: "gpt-5.4-mini",
-    label: "GPT-5.4 Mini",
-    supportsStreaming: true,
-    metadata: {
-      supportsEffort: true,
-      supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
-    },
-  },
-  {
-    id: "gpt-5.3-codex",
-    label: "GPT-5.3 Codex",
-    supportsStreaming: true,
-    metadata: {
-      supportsEffort: true,
-      supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
-    },
-  },
-];
 
 function createFallbackLogger(): CodexRuntimeAdapterLogger {
   return {
@@ -356,7 +331,7 @@ export function createCodexRuntimeAdapter(
       const transport = resolveTransport({ transport: input.transport, options });
       if (transport === RuntimeTransport.API) {
         try {
-          const models = await listCodexAgentApiModels(input);
+          const models = enrichCodexDiscoveredModels(await listCodexAgentApiModels(input));
           if (models.length > 0) {
             logger.debug?.(
               {
@@ -378,6 +353,26 @@ export function createCodexRuntimeAdapter(
           );
         }
       }
+
+      if (transport === RuntimeTransport.CLI || transport === RuntimeTransport.SDK) {
+        try {
+          const models = await listCodexAppServerModels({ ...input, transport }, logger);
+          if (models.length > 0) {
+            return models;
+          }
+        } catch (error) {
+          logger.warn?.(
+            {
+              runtimeId: input.runtimeId,
+              profileId: input.profileId ?? null,
+              transport,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            "WARN [runtime:codex] Codex app-server model discovery failed, falling back to built-in list",
+          );
+        }
+      }
+
       logger.debug?.(
         {
           runtimeId: input.runtimeId,
@@ -386,7 +381,7 @@ export function createCodexRuntimeAdapter(
         },
         "DEBUG [runtime:codex] Returning built-in model list",
       );
-      return DEFAULT_CODEX_MODELS;
+      return getDefaultCodexModels();
     },
 
     initProject(projectRoot) {

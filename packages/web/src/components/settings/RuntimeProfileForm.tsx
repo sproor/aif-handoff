@@ -104,6 +104,21 @@ function makeDiscoveryLabel(model: RuntimeModelOption): string {
   return model.label ? `${model.label} (${model.id})` : model.id;
 }
 
+function pickPreferredDiscoveredModel(
+  models: RuntimeModelOption[],
+  runtimeDefaultModelPlaceholder?: string | null,
+): RuntimeModelOption | null {
+  if (models.length === 0) return null;
+
+  const explicitDefault =
+    models.find((model) => model.metadata?.isDefault === true) ??
+    (runtimeDefaultModelPlaceholder
+      ? models.find((model) => model.id === runtimeDefaultModelPlaceholder)
+      : null);
+
+  return explicitDefault ?? models[0] ?? null;
+}
+
 export function RuntimeProfileForm({
   mode,
   projectId,
@@ -163,6 +178,10 @@ export function RuntimeProfileForm({
   const handleRuntimeChange = (nextRuntimeId: string) => {
     setRuntimeId(nextRuntimeId);
     const runtime = runtimes.find((item) => item.id === nextRuntimeId);
+    setDefaultModel("");
+    setEffort("");
+    setDiscoveredModels([]);
+    setModelsError(null);
     if (!runtime) return;
     setProviderId(runtime.providerId);
     const supported = runtime.supportedTransports ?? [];
@@ -199,6 +218,17 @@ export function RuntimeProfileForm({
     });
     setDiscoveredModels(result.models);
     setModelsError(null);
+    const preferredModel = pickPreferredDiscoveredModel(
+      result.models,
+      currentRuntime?.defaultModelPlaceholder ?? null,
+    );
+    setDefaultModel((current) => {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        return current;
+      }
+      return preferredModel?.id ?? current;
+    });
   };
 
   const runAutoLoadModels = useEffectEvent(async () =>
@@ -218,11 +248,24 @@ export function RuntimeProfileForm({
     }
 
     const run = async () => {
+      setDiscoveredModels([]);
+      setModelsError(null);
       try {
         const result = await runAutoLoadModels();
         if (cancelled) return;
         setDiscoveredModels(result.models);
         setModelsError(null);
+        const preferredModel = pickPreferredDiscoveredModel(
+          result.models,
+          currentRuntime?.defaultModelPlaceholder ?? null,
+        );
+        setDefaultModel((current) => {
+          const trimmed = current.trim();
+          if (trimmed.length > 0) {
+            return current;
+          }
+          return preferredModel?.id ?? current;
+        });
       } catch (loadError) {
         if (cancelled) return;
         setDiscoveredModels([]);

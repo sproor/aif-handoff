@@ -4,6 +4,7 @@ const runCodexCliMock = vi.fn();
 const runCodexAgentApiMock = vi.fn();
 const validateCodexAgentApiConnectionMock = vi.fn();
 const listCodexAgentApiModelsMock = vi.fn();
+const listCodexAppServerModelsMock = vi.fn();
 
 vi.mock("../adapters/codex/cli.js", () => ({
   runCodexCli: (...args: unknown[]) => runCodexCliMock(...args),
@@ -15,6 +16,16 @@ vi.mock("../adapters/codex/api.js", () => ({
     validateCodexAgentApiConnectionMock(...args),
   listCodexAgentApiModels: (...args: unknown[]) => listCodexAgentApiModelsMock(...args),
 }));
+
+vi.mock("../adapters/codex/modelDiscovery.js", async () => {
+  const actual = await vi.importActual<typeof import("../adapters/codex/modelDiscovery.js")>(
+    "../adapters/codex/modelDiscovery.js",
+  );
+  return {
+    ...actual,
+    listCodexAppServerModels: (...args: unknown[]) => listCodexAppServerModelsMock(...args),
+  };
+});
 
 const { createCodexRuntimeAdapter } = await import("../adapters/codex/index.js");
 
@@ -46,6 +57,8 @@ describe("Codex runtime adapter", () => {
     });
     listCodexAgentApiModelsMock.mockReset();
     listCodexAgentApiModelsMock.mockResolvedValue([]);
+    listCodexAppServerModelsMock.mockReset();
+    listCodexAppServerModelsMock.mockResolvedValue([]);
   });
 
   it("exposes codex descriptor and capabilities", () => {
@@ -103,25 +116,64 @@ describe("Codex runtime adapter", () => {
     expect(validateCodexAgentApiConnectionMock).toHaveBeenCalledTimes(1);
   });
 
-  it("returns built-in model list", async () => {
+  it("returns built-in model list when dynamic discovery is unavailable", async () => {
     const adapter = createCodexRuntimeAdapter();
     const models = await adapter.listModels!({
       runtimeId: "codex",
       providerId: "openai",
       profileId: "profile-1",
     });
-    expect(models.map((model) => model.id)).toEqual(["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"]);
+    expect(models.map((model) => model.id)).toEqual([
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex",
+      "gpt-5.3-codex-spark",
+    ]);
     expect(models[0]?.metadata).toMatchObject({
       supportsEffort: true,
       supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
     });
   });
 
+  it("uses Codex app-server model discovery for CLI transport", async () => {
+    listCodexAppServerModelsMock.mockResolvedValueOnce([
+      {
+        id: "gpt-5.4",
+        label: "GPT-5.4 (CLI)",
+        supportsStreaming: true,
+        metadata: {
+          supportsEffort: true,
+          supportedEffortLevels: ["minimal", "medium", "high"],
+        },
+      },
+    ]);
+    const adapter = createCodexRuntimeAdapter();
+
+    const models = await adapter.listModels!({
+      runtimeId: "codex",
+      providerId: "openai",
+      profileId: "profile-1",
+      transport: "cli",
+    });
+
+    expect(models).toEqual([
+      {
+        id: "gpt-5.4",
+        label: "GPT-5.4 (CLI)",
+        supportsStreaming: true,
+        metadata: {
+          supportsEffort: true,
+          supportedEffortLevels: ["minimal", "medium", "high"],
+        },
+      },
+    ]);
+    expect(listCodexAppServerModelsMock).toHaveBeenCalledTimes(1);
+  });
+
   it("uses API model discovery when API transport is selected", async () => {
     listCodexAgentApiModelsMock.mockResolvedValueOnce([
       {
-        id: "remote-codex-model",
-        label: "Remote Codex Model",
+        id: "gpt-5.4-mini",
       },
     ]);
     const adapter = createCodexRuntimeAdapter();
@@ -139,10 +191,34 @@ describe("Codex runtime adapter", () => {
 
     expect(models).toEqual([
       {
-        id: "remote-codex-model",
-        label: "Remote Codex Model",
+        id: "gpt-5.4-mini",
+        label: "GPT-5.4 Mini",
+        supportsStreaming: true,
+        metadata: {
+          supportsEffort: true,
+          supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
+        },
       },
     ]);
     expect(listCodexAgentApiModelsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to built-in model list when CLI app-server discovery fails", async () => {
+    listCodexAppServerModelsMock.mockRejectedValueOnce(new Error("app-server unavailable"));
+    const adapter = createCodexRuntimeAdapter();
+
+    const models = await adapter.listModels!({
+      runtimeId: "codex",
+      providerId: "openai",
+      profileId: "profile-1",
+      transport: "cli",
+    });
+
+    expect(models.map((model) => model.id)).toEqual([
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex",
+      "gpt-5.3-codex-spark",
+    ]);
   });
 });

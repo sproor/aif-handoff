@@ -92,9 +92,6 @@ describe("RuntimeProfileForm", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /pick from runtime catalog/i }));
-    fireEvent.click(screen.getByRole("button", { name: "GPT-5.4 (gpt-5.4)" }));
-
     fireEvent.change(screen.getByDisplayValue("gpt-5.4"), {
       target: { value: "gpt-5.4-custom" },
     });
@@ -154,9 +151,6 @@ describe("RuntimeProfileForm", () => {
 
     await waitFor(() => expect(mockRuntimeModels.mutateAsync).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /pick from runtime catalog/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Claude Sonnet (sonnet)" }));
-
     fireEvent.click(screen.getByRole("button", { name: /runtime default/i }));
     expect(screen.getByRole("button", { name: "HIGH" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "MAX" })).toBeNull();
@@ -177,5 +171,87 @@ describe("RuntimeProfileForm", () => {
         },
       }),
     );
+  });
+
+  it("resets stale model state when switching runtimes and auto-selects the new runtime default", async () => {
+    mockRuntimeModels.mutateAsync.mockImplementation(async ({ profile }) => {
+      if (profile.runtimeId === "codex") {
+        return {
+          models: [
+            {
+              id: "gpt-5.4",
+              label: "GPT-5.4",
+              metadata: {
+                isDefault: true,
+                supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
+              },
+            },
+          ],
+          profile: {},
+        };
+      }
+
+      return {
+        models: [
+          {
+            id: "GLM-5-Turbo",
+            label: "GLM-5 Turbo",
+            metadata: {
+              isDefault: true,
+              supportedEffortLevels: ["low", "medium", "high"],
+            },
+          },
+          {
+            id: "GLM-5-Air",
+            label: "GLM-5 Air",
+            metadata: {
+              supportedEffortLevels: ["low", "medium"],
+            },
+          },
+        ],
+        profile: {},
+      };
+    });
+
+    render(
+      <RuntimeProfileForm
+        mode="create"
+        projectId="project-1"
+        runtimes={[
+          createRuntimeDescriptor({
+            id: "codex",
+            providerId: "openai",
+            displayName: "Codex",
+            defaultTransport: "sdk",
+            defaultApiKeyEnvVar: "OPENAI_API_KEY",
+            defaultModelPlaceholder: "gpt-5.4",
+            supportedTransports: ["sdk", "cli", "api"],
+          }),
+          createRuntimeDescriptor({
+            id: "claude",
+            providerId: "anthropic",
+            displayName: "Claude",
+            defaultTransport: "sdk",
+            defaultApiKeyEnvVar: "ANTHROPIC_API_KEY",
+            defaultModelPlaceholder: "sonnet",
+            supportedTransports: ["sdk", "cli", "api"],
+          }),
+        ]}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("gpt-5.4")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /codex \(codex\)/i }));
+    fireEvent.click(screen.getByRole("button", { name: /claude \(claude\)/i }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("GLM-5-Turbo")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByDisplayValue("gpt-5.4")).toBeNull();
   });
 });
