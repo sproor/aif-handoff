@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
-import { createClaudeRuntimeAdapter } from "../adapters/claude/index.js";
+import { describe, expect, it, vi } from "vitest";
 import { RuntimeTransport } from "../types.js";
+
+// Mock the CLI probe so tests don't depend on `claude` being installed
+vi.mock("../adapters/claude/cli.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../adapters/claude/cli.js")>();
+  return {
+    ...actual,
+    probeClaudeCli: vi.fn(() => ({ ok: true, version: "1.0.0-mock" })),
+  };
+});
+
+const { createClaudeRuntimeAdapter } = await import("../adapters/claude/index.js");
 
 describe("Claude adapter validateConnection", () => {
   const adapter = createClaudeRuntimeAdapter();
@@ -33,7 +43,7 @@ describe("Claude adapter validateConnection", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("CLI transport passes without API key", async () => {
+  it("CLI transport passes when probe succeeds", async () => {
     const result = await validate({
       ...base,
       transport: RuntimeTransport.CLI,
@@ -43,11 +53,27 @@ describe("Claude adapter validateConnection", () => {
     expect(result.message).toContain("CLI");
   });
 
-  it("CLI transport fails when binary is not reachable", async () => {
+  it("CLI transport reports version from probe", async () => {
     const result = await validate({
       ...base,
       transport: RuntimeTransport.CLI,
-      options: { claudeCliPath: "__nonexistent_claude_binary__" },
+      options: {},
+    });
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain("1.0.0-mock");
+  });
+
+  it("CLI transport fails when binary is not reachable", async () => {
+    const { probeClaudeCli } = await import("../adapters/claude/cli.js");
+    (probeClaudeCli as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      ok: false,
+      error: "spawn __bad__ ENOENT",
+    });
+
+    const result = await validate({
+      ...base,
+      transport: RuntimeTransport.CLI,
+      options: {},
     });
     expect(result.ok).toBe(false);
     expect(result.message).toContain("not reachable");

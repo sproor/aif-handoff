@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, Moon, Sun, Command, ChartColumn, Map, Settings } from "lucide-react";
+import { Bell, Moon, Sun, Command, ChartColumn, Cpu, Map, Settings } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useEffectiveChatRuntime } from "@/hooks/useRuntimeProfiles";
 import { Button } from "@/components/ui/button";
@@ -190,6 +190,7 @@ export function Header({
                 : "Select project first"
             }
           >
+            <Cpu className="h-3.5 w-3.5" />
             <span>RUNTIME</span>
           </Button>
           <Button

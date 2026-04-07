@@ -12,6 +12,15 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   getSessionMessages: getSessionMessagesMock,
 }));
 
+// Mock the CLI probe so tests don't depend on `claude` being installed
+vi.mock("../adapters/claude/cli.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../adapters/claude/cli.js")>();
+  return {
+    ...actual,
+    probeClaudeCli: vi.fn(() => ({ ok: true, version: "1.0.0-mock" })),
+  };
+});
+
 const { createClaudeRuntimeAdapter } = await import("../adapters/claude/index.js");
 const { ClaudeRuntimeAdapterError } = await import("../adapters/claude/errors.js");
 
@@ -338,7 +347,7 @@ describe("Claude runtime adapter", () => {
       profileId: "profile-1",
     });
 
-    expect(models.map((model) => model.id)).toEqual(["sonnet", "opus", "haiku"]);
+    expect(models.map((model) => model.id)).toEqual(["opus", "sonnet", "haiku"]);
   });
 
   it("forwards resume mode and session id to Claude query options", async () => {
