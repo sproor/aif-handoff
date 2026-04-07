@@ -378,7 +378,7 @@ runtimeProfilesRouter.post(
       modelOverride: body.modelOverride ?? null,
       runtimeOptionsOverride: body.runtimeOptions ?? null,
       allowDisabled: true,
-      env,
+      env: Object.keys(env).length > 0 ? env : undefined,
     });
 
     try {
@@ -461,7 +461,7 @@ runtimeProfilesRouter.post(
       modelOverride: body.modelOverride ?? null,
       runtimeOptionsOverride: body.runtimeOptions ?? null,
       allowDisabled: true,
-      env,
+      env: Object.keys(env).length > 0 ? env : undefined,
     });
 
     try {
