@@ -31,6 +31,21 @@ const log = logger("api-runtime");
 let runtimeRegistryPromise: Promise<RuntimeRegistry> | null = null;
 let modelDiscoveryService: RuntimeModelDiscoveryService | null = null;
 
+function getCodexExecutionHooks(input: {
+  runtimeId: string;
+  transport: string;
+  bypassPermissions: boolean;
+}): Record<string, unknown> {
+  if (input.runtimeId !== "codex" || input.transport !== "sdk") {
+    return {};
+  }
+
+  return {
+    approvalPolicy: input.bypassPermissions ? "never" : "on-request",
+    sandboxMode: "workspace-write",
+  };
+}
+
 export async function getApiRuntimeRegistry(): Promise<RuntimeRegistry> {
   if (!runtimeRegistryPromise) {
     runtimeRegistryPromise = bootstrapRuntimeRegistry({
@@ -288,6 +303,11 @@ export async function runApiRuntimeOneShot(input: {
         ? { HANDOFF_MODE: "1", HANDOFF_TASK_ID: input.taskId }
         : { HANDOFF_MODE: "1" },
       hooks: {
+        ...getCodexExecutionHooks({
+          runtimeId: context.resolvedProfile.runtimeId,
+          transport: context.resolvedProfile.transport,
+          bypassPermissions,
+        }),
         permissionMode: bypassPermissions ? "bypassPermissions" : "acceptEdits",
         allowDangerouslySkipPermissions: bypassPermissions,
         _trustToken: RUNTIME_TRUST_TOKEN,

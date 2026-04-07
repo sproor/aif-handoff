@@ -5,6 +5,7 @@ import {
   createRuntimeWorkflowSpec,
   getResultSessionId,
   isRuntimeErrorCategory,
+  RUNTIME_TRUST_TOKEN,
   resolveAdapterCapabilities,
   RuntimeTransport,
   type RuntimeAdapter,
@@ -151,6 +152,21 @@ function parseVirtualRuntimeSessionId(
 
 function runtimeSourceFromTransport(transport: string): "cli" | "agent" {
   return transport === RuntimeTransport.CLI ? "cli" : "agent";
+}
+
+function getCodexExecutionHooks(input: {
+  runtimeId: string;
+  transport: string;
+  bypassPermissions: boolean;
+}): Record<string, unknown> {
+  if (input.runtimeId !== "codex" || input.transport !== RuntimeTransport.SDK) {
+    return {};
+  }
+
+  return {
+    approvalPolicy: input.bypassPermissions ? "never" : "on-request",
+    sandboxMode: "workspace-write",
+  };
 }
 
 function classifyChatError(err: unknown): {
@@ -788,19 +804,27 @@ chatRouter.post("/", jsonValidator(chatRequestSchema), async (c) => {
           ? { apiKeyEnvVar: runtimeContext.resolvedProfile.apiKeyEnvVar }
           : {}),
       },
-      metadata: {
-        permissionMode: bypassPermissions ? "bypassPermissions" : "acceptEdits",
-        allowDangerouslySkipPermissions: bypassPermissions,
-        settings: { attribution: { commit: "", pr: "" } },
-        settingSources: ["project"],
+      execution: {
         includePartialMessages: true,
         maxTurns: 20,
+        onEvent: onRuntimeEvent,
+        systemPromptAppend: systemAppend,
         environment: {
           HANDOFF_MODE: "1",
           ...(taskId ? { HANDOFF_TASK_ID: taskId } : {}),
         },
-        systemPromptAppend: systemAppend,
-        onEvent: onRuntimeEvent,
+        hooks: {
+          ...getCodexExecutionHooks({
+            runtimeId,
+            transport: runtimeContext.resolvedProfile.transport,
+            bypassPermissions,
+          }),
+          permissionMode: bypassPermissions ? "bypassPermissions" : "acceptEdits",
+          allowDangerouslySkipPermissions: bypassPermissions,
+          _trustToken: RUNTIME_TRUST_TOKEN,
+          settings: { attribution: { commit: "", pr: "" } },
+          settingSources: ["project"],
+        },
       },
     };
 
