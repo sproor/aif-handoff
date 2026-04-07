@@ -87,6 +87,37 @@ function immediateSuccess(result: string) {
   };
 }
 
+function discoverySession(
+  models: Array<{
+    value: string;
+    displayName: string;
+    description: string;
+    supportsEffort?: boolean;
+    supportedEffortLevels?: Array<"low" | "medium" | "high" | "max">;
+    supportsAdaptiveThinking?: boolean;
+    supportsFastMode?: boolean;
+    supportsAutoMode?: boolean;
+  }>,
+) {
+  return {
+    async supportedModels() {
+      return models;
+    },
+    async return() {
+      return { done: true, value: undefined };
+    },
+    async next() {
+      return { done: true, value: undefined };
+    },
+    async throw(error?: unknown) {
+      throw error;
+    },
+    [Symbol.asyncIterator]() {
+      return this;
+    },
+  };
+}
+
 function missingSessionFailure(sessionId: string) {
   return async function* () {
     yield {
@@ -339,7 +370,47 @@ describe("Claude runtime adapter", () => {
     expect(cliWithoutKey.ok).toBe(true);
   });
 
-  it("lists default Claude models", async () => {
+  it("lists discovered Claude models from SDK control initialization", async () => {
+    queryMock.mockImplementation(() =>
+      discoverySession([
+        {
+          value: "claude-sonnet-4-6",
+          displayName: "Claude Sonnet 4.6",
+          description: "Balanced model",
+          supportsEffort: true,
+          supportedEffortLevels: ["low", "medium", "high"],
+          supportsAdaptiveThinking: true,
+        },
+      ]),
+    );
+    const adapter = createClaudeRuntimeAdapter();
+    const models = await adapter.listModels!({
+      runtimeId: "claude",
+      providerId: "anthropic",
+      profileId: "profile-1",
+      transport: "cli",
+    });
+
+    expect(models).toEqual([
+      {
+        id: "claude-sonnet-4-6",
+        label: "Claude Sonnet 4.6",
+        supportsStreaming: true,
+        metadata: {
+          description: "Balanced model",
+          supportsEffort: true,
+          supportedEffortLevels: ["low", "medium", "high"],
+          supportsAdaptiveThinking: true,
+        },
+      },
+    ]);
+    expect(queryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to default Claude models when dynamic discovery fails", async () => {
+    queryMock.mockImplementation(() => {
+      throw new Error("initialize failed");
+    });
     const adapter = createClaudeRuntimeAdapter();
     const models = await adapter.listModels!({
       runtimeId: "claude",
@@ -348,6 +419,14 @@ describe("Claude runtime adapter", () => {
     });
 
     expect(models.map((model) => model.id)).toEqual(["opus", "sonnet", "haiku"]);
+    expect(models[0]?.metadata).toMatchObject({
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "medium", "high", "max"],
+    });
+    expect(models[1]?.metadata).toMatchObject({
+      supportsAdaptiveThinking: true,
+      supportedEffortLevels: ["low", "medium", "high"],
+    });
   });
 
   it("forwards resume mode and session id to Claude query options", async () => {
@@ -398,6 +477,27 @@ describe("Claude runtime adapter", () => {
     expect(call.options.env.ANTHROPIC_API_KEY).toBe("sk-ant-test");
     expect(call.options.env.ANTHROPIC_BASE_URL).toBe("https://api.anthropic.com");
     expect(call.options.env.CUSTOM_ENV).toBe("1");
+  });
+
+  it("forwards effort to Claude query options", async () => {
+    queryMock.mockImplementation(immediateSuccess("effort-ok"));
+    const adapter = createClaudeRuntimeAdapter();
+
+    const result = await adapter.run(
+      createRunInput({
+        model: "sonnet",
+        options: {
+          apiKeyEnvVar: "ANTHROPIC_API_KEY",
+          effort: "high",
+        },
+      }),
+    );
+
+    expect(result.outputText).toBe("effort-ok");
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    const call = queryMock.mock.calls[0][0];
+    expect(call.options.model).toBe("sonnet");
+    expect(call.options.effort).toBe("high");
   });
 
   it("retries without resume when the previous session is missing", async () => {

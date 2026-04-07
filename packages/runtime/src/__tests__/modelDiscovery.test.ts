@@ -160,6 +160,75 @@ describe("runtime model discovery service", () => {
     });
   });
 
+  it("passes transport-aware profile details into adapter model discovery", async () => {
+    const listModelsMock = vi.fn(async (): Promise<RuntimeModel[]> => [{ id: "remote-model" }]);
+    const adapter: RuntimeAdapter = {
+      descriptor: {
+        id: "stub-runtime",
+        providerId: "stub-provider",
+        displayName: "Stub Runtime",
+        capabilities: {
+          supportsResume: true,
+          supportsSessionList: false,
+          supportsAgentDefinitions: false,
+          supportsStreaming: false,
+          supportsModelDiscovery: false,
+          supportsApprovals: false,
+          supportsCustomEndpoint: false,
+        },
+      },
+      getEffectiveCapabilities: (transport) => ({
+        supportsResume: true,
+        supportsSessionList: false,
+        supportsAgentDefinitions: false,
+        supportsStreaming: false,
+        supportsModelDiscovery: transport === "api",
+        supportsApprovals: false,
+        supportsCustomEndpoint: true,
+      }),
+      run: async () => ({ outputText: "ok" }),
+      listModels: listModelsMock,
+    };
+
+    const registry = createRuntimeRegistry({ builtInAdapters: [adapter] });
+    const service = createRuntimeModelDiscoveryService({ registry });
+    const resolved = createResolvedProfile("stub-runtime", {
+      transport: "api",
+      baseUrl: "https://runtime.example.com",
+      apiKeyEnvVar: "RUNTIME_API_KEY",
+      apiKey: "sk-transport",
+      model: "chosen-model",
+      headers: { "x-request-id": "req-1" },
+      options: {
+        projectRoot: "/tmp/runtime-project",
+        customFlag: "enabled",
+      },
+    });
+
+    const models = await service.listModels(resolved);
+
+    expect(models).toEqual([{ id: "remote-model" }]);
+    expect(listModelsMock).toHaveBeenCalledWith({
+      runtimeId: "stub-runtime",
+      providerId: "stub-provider",
+      profileId: "profile-1",
+      model: "chosen-model",
+      transport: "api",
+      projectRoot: "/tmp/runtime-project",
+      headers: { "x-request-id": "req-1" },
+      options: {
+        projectRoot: "/tmp/runtime-project",
+        customFlag: "enabled",
+        baseUrl: "https://runtime.example.com",
+        apiKey: "sk-transport",
+        apiKeyEnvVar: "RUNTIME_API_KEY",
+      },
+      baseUrl: "https://runtime.example.com",
+      apiKey: "sk-transport",
+      apiKeyEnvVar: "RUNTIME_API_KEY",
+    });
+  });
+
   it("caches adapter validateConnection results", async () => {
     const validateConnectionMock = vi
       .fn<(input: unknown) => Promise<RuntimeConnectionValidationResult>>()

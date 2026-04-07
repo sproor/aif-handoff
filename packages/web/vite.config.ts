@@ -61,6 +61,7 @@ export default defineConfig({
   },
   server: {
     port: WEB_PORT,
+    host: "0.0.0.0",
     proxy: {
       "/projects": apiTarget,
       "/tasks": apiTarget,

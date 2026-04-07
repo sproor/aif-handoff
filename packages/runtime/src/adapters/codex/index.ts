@@ -38,9 +38,33 @@ export interface CreateCodexRuntimeAdapterOptions {
 }
 
 const DEFAULT_CODEX_MODELS: RuntimeModel[] = [
-  { id: "gpt-5.4", label: "GPT-5.4", supportsStreaming: true },
-  { id: "gpt-5.4-mini", label: "GPT-5.4 Mini", supportsStreaming: true },
-  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex", supportsStreaming: true },
+  {
+    id: "gpt-5.4",
+    label: "GPT-5.4",
+    supportsStreaming: true,
+    metadata: {
+      supportsEffort: true,
+      supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
+    },
+  },
+  {
+    id: "gpt-5.4-mini",
+    label: "GPT-5.4 Mini",
+    supportsStreaming: true,
+    metadata: {
+      supportsEffort: true,
+      supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
+    },
+  },
+  {
+    id: "gpt-5.3-codex",
+    label: "GPT-5.3 Codex",
+    supportsStreaming: true,
+    metadata: {
+      supportsEffort: true,
+      supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
+    },
+  },
 ];
 
 function createFallbackLogger(): CodexRuntimeAdapterLogger {
@@ -328,8 +352,8 @@ export function createCodexRuntimeAdapter(
     },
 
     async listModels(input: RuntimeModelListInput): Promise<RuntimeModel[]> {
-      const options = asRecord(input);
-      const transport = resolveTransport({ transport: undefined, options });
+      const options = asRecord(input.options);
+      const transport = resolveTransport({ transport: input.transport, options });
       if (transport === RuntimeTransport.API) {
         try {
           const models = await listCodexAgentApiModels(input);

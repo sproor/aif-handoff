@@ -211,6 +211,7 @@ export function buildClaudeQueryOptions(
   input: RuntimeRunInput,
   execution: ClaudeRuntimeExecutionOptions,
 ): Record<string, unknown> {
+  const optionRecord = toRecord(input.options);
   const hooks = buildClaudeHooks({
     postToolUseHooks: execution.postToolUseHooks,
     subagentStartHooks: execution.subagentStartHooks,
@@ -220,6 +221,12 @@ export function buildClaudeQueryOptions(
 
   const mergedAppend = mergeSystemPromptAppend(input, execution);
   const settings = execution.settings ?? { attribution: { commit: "", pr: "" } };
+  const effort =
+    typeof optionRecord?.effort === "number"
+      ? optionRecord.effort
+      : typeof optionRecord?.effort === "string"
+        ? optionRecord.effort.trim()
+        : null;
   return {
     ...(execution.abortController ? { abortController: execution.abortController } : {}),
     cwd: input.cwd ?? input.projectRoot,
@@ -246,5 +253,10 @@ export function buildClaudeQueryOptions(
       : {}),
     ...(input.resume && input.sessionId ? { resume: input.sessionId } : {}),
     ...(input.model ? { model: input.model } : {}),
+    ...(effort === "low" || effort === "medium" || effort === "high" || effort === "max"
+      ? { effort }
+      : typeof effort === "number"
+        ? { effort }
+        : {}),
   };
 }

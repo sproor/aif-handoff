@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const runCodexCliMock = vi.fn();
 const runCodexAgentApiMock = vi.fn();
 const validateCodexAgentApiConnectionMock = vi.fn();
+const listCodexAgentApiModelsMock = vi.fn();
 
 vi.mock("../adapters/codex/cli.js", () => ({
   runCodexCli: (...args: unknown[]) => runCodexCliMock(...args),
@@ -12,6 +13,7 @@ vi.mock("../adapters/codex/api.js", () => ({
   runCodexAgentApi: (...args: unknown[]) => runCodexAgentApiMock(...args),
   validateCodexAgentApiConnection: (...args: unknown[]) =>
     validateCodexAgentApiConnectionMock(...args),
+  listCodexAgentApiModels: (...args: unknown[]) => listCodexAgentApiModelsMock(...args),
 }));
 
 const { createCodexRuntimeAdapter } = await import("../adapters/codex/index.js");
@@ -42,6 +44,8 @@ describe("Codex runtime adapter", () => {
       ok: true,
       message: "agentapi ok",
     });
+    listCodexAgentApiModelsMock.mockReset();
+    listCodexAgentApiModelsMock.mockResolvedValue([]);
   });
 
   it("exposes codex descriptor and capabilities", () => {
@@ -107,5 +111,38 @@ describe("Codex runtime adapter", () => {
       profileId: "profile-1",
     });
     expect(models.map((model) => model.id)).toEqual(["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"]);
+    expect(models[0]?.metadata).toMatchObject({
+      supportsEffort: true,
+      supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
+    });
+  });
+
+  it("uses API model discovery when API transport is selected", async () => {
+    listCodexAgentApiModelsMock.mockResolvedValueOnce([
+      {
+        id: "remote-codex-model",
+        label: "Remote Codex Model",
+      },
+    ]);
+    const adapter = createCodexRuntimeAdapter();
+
+    const models = await adapter.listModels!({
+      runtimeId: "codex",
+      providerId: "openai",
+      profileId: "profile-1",
+      transport: "api",
+      options: {
+        baseUrl: "https://runtime.example.com",
+        apiKey: "sk-test",
+      },
+    });
+
+    expect(models).toEqual([
+      {
+        id: "remote-codex-model",
+        label: "Remote Codex Model",
+      },
+    ]);
+    expect(listCodexAgentApiModelsMock).toHaveBeenCalledTimes(1);
   });
 });

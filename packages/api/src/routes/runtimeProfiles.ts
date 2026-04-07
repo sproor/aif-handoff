@@ -170,6 +170,7 @@ runtimeProfilesRouter.get("/runtimes", async (c) => {
       displayName: runtime.displayName,
       description: runtime.description ?? null,
       capabilities: runtime.capabilities,
+      defaultTransport: runtime.defaultTransport ?? null,
       defaultApiKeyEnvVar: runtime.defaultApiKeyEnvVar ?? null,
       defaultModelPlaceholder: runtime.defaultModelPlaceholder ?? null,
       supportedTransports: runtime.supportedTransports ?? [],

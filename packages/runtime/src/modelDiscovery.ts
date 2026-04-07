@@ -4,7 +4,11 @@ import { RuntimeValidationError } from "./errors.js";
 import type { ResolvedRuntimeProfile } from "./resolution.js";
 import { validateResolvedRuntimeProfile } from "./resolution.js";
 import type { RuntimeRegistry } from "./registry.js";
-import type { RuntimeConnectionValidationResult, RuntimeModel } from "./types.js";
+import {
+  resolveAdapterCapabilities,
+  type RuntimeConnectionValidationResult,
+  type RuntimeModel,
+} from "./types.js";
 
 export interface RuntimeModelDiscoveryLogger {
   debug?(context: Record<string, unknown>, message: string): void;
@@ -71,10 +75,11 @@ export function createRuntimeModelDiscoveryService(
       }
 
       const adapter = options.registry.resolveRuntime(resolved.runtimeId);
+      const capabilities = resolveAdapterCapabilities(adapter, resolved.transport);
       const capabilityResult = checkRuntimeCapabilities({
         runtimeId: resolved.runtimeId,
         workflowKind: "model-discovery",
-        capabilities: adapter.descriptor.capabilities,
+        capabilities,
         required: ["supportsModelDiscovery"],
       });
       if (!capabilityResult.ok || !adapter.listModels) {
@@ -88,10 +93,22 @@ export function createRuntimeModelDiscoveryService(
           runtimeId: resolved.runtimeId,
           providerId: resolved.providerId,
           profileId: resolved.profileId,
+          model: resolved.model ?? undefined,
+          transport: resolved.transport,
           projectRoot:
             typeof resolved.options.projectRoot === "string"
               ? resolved.options.projectRoot
               : undefined,
+          headers: resolved.headers,
+          options: {
+            ...resolved.options,
+            ...(resolved.baseUrl ? { baseUrl: resolved.baseUrl } : {}),
+            ...(resolved.apiKey ? { apiKey: resolved.apiKey } : {}),
+            ...(resolved.apiKeyEnvVar ? { apiKeyEnvVar: resolved.apiKeyEnvVar } : {}),
+          },
+          baseUrl: resolved.baseUrl,
+          apiKey: resolved.apiKey,
+          apiKeyEnvVar: resolved.apiKeyEnvVar,
         });
         modelCache.set(cacheKey, models, cacheTtlMs);
         options.logger?.info?.(
