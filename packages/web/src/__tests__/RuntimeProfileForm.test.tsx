@@ -35,6 +35,15 @@ function createRuntimeDescriptor(overrides: Partial<RuntimeDescriptor>): Runtime
   };
 }
 
+function createDeferredResult() {
+  let resolve!: (value: { models: unknown[]; profile: Record<string, unknown> }) => void;
+  const promise = new Promise<{ models: unknown[]; profile: Record<string, unknown> }>((res) => {
+    resolve = res;
+  });
+
+  return { promise, resolve };
+}
+
 describe("RuntimeProfileForm", () => {
   beforeEach(() => {
     mockRuntimeModels.isPending = false;
@@ -149,7 +158,7 @@ describe("RuntimeProfileForm", () => {
       />,
     );
 
-    await waitFor(() => expect(mockRuntimeModels.mutateAsync).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByDisplayValue("sonnet")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /runtime default/i }));
     expect(screen.getByRole("button", { name: "HIGH" })).toBeInTheDocument();
@@ -174,43 +183,15 @@ describe("RuntimeProfileForm", () => {
   });
 
   it("resets stale model state when switching runtimes and auto-selects the new runtime default", async () => {
-    mockRuntimeModels.mutateAsync.mockImplementation(async ({ profile }) => {
+    const codexLoad = createDeferredResult();
+    const claudeLoad = createDeferredResult();
+
+    mockRuntimeModels.mutateAsync.mockImplementation(({ profile }) => {
       if (profile.runtimeId === "codex") {
-        return {
-          models: [
-            {
-              id: "gpt-5.4",
-              label: "GPT-5.4",
-              metadata: {
-                isDefault: true,
-                supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
-              },
-            },
-          ],
-          profile: {},
-        };
+        return codexLoad.promise;
       }
 
-      return {
-        models: [
-          {
-            id: "GLM-5-Turbo",
-            label: "GLM-5 Turbo",
-            metadata: {
-              isDefault: true,
-              supportedEffortLevels: ["low", "medium", "high"],
-            },
-          },
-          {
-            id: "GLM-5-Air",
-            label: "GLM-5 Air",
-            metadata: {
-              supportedEffortLevels: ["low", "medium"],
-            },
-          },
-        ],
-        profile: {},
-      };
+      return claudeLoad.promise;
     });
 
     render(
@@ -242,16 +223,74 @@ describe("RuntimeProfileForm", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("gpt-5.4")).toBeInTheDocument();
+      expect(mockRuntimeModels.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: "project-1",
+          profile: expect.objectContaining({
+            runtimeId: "codex",
+          }),
+          forceRefresh: false,
+        }),
+      );
     });
 
     fireEvent.click(screen.getByRole("button", { name: /codex \(codex\)/i }));
     fireEvent.click(screen.getByRole("button", { name: /claude \(claude\)/i }));
 
     await waitFor(() => {
+      expect(mockRuntimeModels.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: "project-1",
+          profile: expect.objectContaining({
+            runtimeId: "claude",
+          }),
+          forceRefresh: false,
+        }),
+      );
+    });
+
+    claudeLoad.resolve({
+      models: [
+        {
+          id: "GLM-5-Turbo",
+          label: "GLM-5 Turbo",
+          metadata: {
+            isDefault: true,
+            supportedEffortLevels: ["low", "medium", "high"],
+          },
+        },
+        {
+          id: "GLM-5-Air",
+          label: "GLM-5 Air",
+          metadata: {
+            supportedEffortLevels: ["low", "medium"],
+          },
+        },
+      ],
+      profile: {},
+    });
+
+    await waitFor(() => {
       expect(screen.getByDisplayValue("GLM-5-Turbo")).toBeInTheDocument();
     });
 
+    codexLoad.resolve({
+      models: [
+        {
+          id: "gpt-5.4",
+          label: "GPT-5.4",
+          metadata: {
+            isDefault: true,
+            supportedEffortLevels: ["minimal", "low", "medium", "high", "xhigh"],
+          },
+        },
+      ],
+      profile: {},
+    });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("GLM-5-Turbo")).toBeInTheDocument();
+    });
     expect(screen.queryByDisplayValue("gpt-5.4")).toBeNull();
   });
 });

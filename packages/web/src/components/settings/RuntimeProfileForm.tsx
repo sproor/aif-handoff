@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react";
 import {
   RUNTIME_TRANSPORTS,
   type CreateRuntimeProfileInput,
@@ -155,11 +155,17 @@ export function RuntimeProfileForm({
   const [error, setError] = useState<string | null>(null);
   const [discoveredModels, setDiscoveredModels] = useState<RuntimeModelOption[]>([]);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const modelLoadRequestIdRef = useRef(0);
   const runtimeModels = useRuntimeModels();
   const currentRuntime = runtimes.find((runtime) => runtime.id === runtimeId);
   const supportsModelDiscovery = Boolean(currentRuntime?.capabilities.supportsModelDiscovery);
+  const preferredDiscoveredModel = pickPreferredDiscoveredModel(
+    discoveredModels,
+    currentRuntime?.defaultModelPlaceholder ?? null,
+  );
   const selectedDiscoveredModel =
-    discoveredModels.find((model) => model.id === defaultModel.trim()) ?? null;
+    discoveredModels.find((model) => model.id === defaultModel.trim()) ??
+    (defaultModel.trim().length === 0 ? preferredDiscoveredModel : null);
   const effortLevels = (() => {
     const byModel = getModelEffortLevels(selectedDiscoveredModel);
     return byModel.length > 0 ? byModel : getRuntimeEffortLevels(runtimeId);
@@ -176,6 +182,7 @@ export function RuntimeProfileForm({
   }, [defaultModel, effort, effortLevels, runtimeId]);
 
   const handleRuntimeChange = (nextRuntimeId: string) => {
+    modelLoadRequestIdRef.current += 1;
     setRuntimeId(nextRuntimeId);
     const runtime = runtimes.find((item) => item.id === nextRuntimeId);
     setDefaultModel("");
@@ -211,17 +218,19 @@ export function RuntimeProfileForm({
       setModelsError(null);
       return;
     }
+    const requestId = ++modelLoadRequestIdRef.current;
+    const preferredModelPlaceholder = currentRuntime?.defaultModelPlaceholder ?? null;
     const result = await runtimeModels.mutateAsync({
       projectId: projectId ?? undefined,
       profile: buildProfileDraft(),
       forceRefresh,
     });
+    if (requestId !== modelLoadRequestIdRef.current) {
+      return;
+    }
     setDiscoveredModels(result.models);
     setModelsError(null);
-    const preferredModel = pickPreferredDiscoveredModel(
-      result.models,
-      currentRuntime?.defaultModelPlaceholder ?? null,
-    );
+    const preferredModel = pickPreferredDiscoveredModel(result.models, preferredModelPlaceholder);
     setDefaultModel((current) => {
       const trimmed = current.trim();
       if (trimmed.length > 0) {
@@ -242,22 +251,25 @@ export function RuntimeProfileForm({
   useEffect(() => {
     let cancelled = false;
     if (!supportsModelDiscovery) {
+      modelLoadRequestIdRef.current += 1;
       setDiscoveredModels([]);
       setModelsError(null);
       return;
     }
 
     const run = async () => {
+      const requestId = ++modelLoadRequestIdRef.current;
+      const preferredModelPlaceholder = currentRuntime?.defaultModelPlaceholder ?? null;
       setDiscoveredModels([]);
       setModelsError(null);
       try {
         const result = await runAutoLoadModels();
-        if (cancelled) return;
+        if (cancelled || requestId !== modelLoadRequestIdRef.current) return;
         setDiscoveredModels(result.models);
         setModelsError(null);
         const preferredModel = pickPreferredDiscoveredModel(
           result.models,
-          currentRuntime?.defaultModelPlaceholder ?? null,
+          preferredModelPlaceholder,
         );
         setDefaultModel((current) => {
           const trimmed = current.trim();
@@ -286,10 +298,10 @@ export function RuntimeProfileForm({
     transport,
     baseUrl,
     apiKeyEnvVar,
-    defaultModel,
     headersJson,
     optionsJson,
     supportsModelDiscovery,
+    currentRuntime?.defaultModelPlaceholder,
   ]);
 
   const handleSubmit = async (event: FormEvent) => {
