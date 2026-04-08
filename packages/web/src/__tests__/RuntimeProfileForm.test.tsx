@@ -353,4 +353,87 @@ describe("RuntimeProfileForm", () => {
     });
     expect(screen.queryByDisplayValue("gpt-5.4")).toBeNull();
   });
+
+  it("shows model filter for large catalogs and filters case-insensitively", async () => {
+    mockRuntimeModels.mutateAsync.mockResolvedValue({
+      models: [
+        { id: "alpha-1", label: "Alpha 1" },
+        { id: "gemma-2b-it", label: "Gemma 2B IT" },
+        { id: "GeMmA-9b", label: "GeMmA 9B" },
+        { id: "llama-3", label: "Llama 3" },
+        { id: "mistral-small", label: "Mistral Small" },
+        { id: "qwen-2.5", label: "Qwen 2.5" },
+      ],
+      profile: {},
+    });
+
+    render(
+      <RuntimeProfileForm
+        mode="create"
+        projectId="project-1"
+        runtimes={[
+          createRuntimeDescriptor({
+            id: "codex",
+            providerId: "openai",
+            displayName: "Codex",
+            defaultTransport: "cli",
+            defaultApiKeyEnvVar: "OPENAI_API_KEY",
+            defaultModelPlaceholder: "gpt-5.4",
+            supportedTransports: ["sdk", "cli", "api"],
+          }),
+        ]}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    const selectButton = await screen.findByRole("button", { name: /Alpha 1 \(alpha-1\)/i });
+    fireEvent.click(selectButton);
+    const filterInput = await screen.findByPlaceholderText("Filter suggested models");
+    await waitFor(() => expect(filterInput).toHaveFocus());
+    fireEvent.change(filterInput, { target: { value: "gEmMa" } });
+
+    expect(
+      screen.getByRole("button", { name: /Gemma 2B IT \(gemma-2b-it\)/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /GeMmA 9B \(GeMmA-9b\)/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Llama 3/i })).toBeNull();
+  });
+
+  it("does not show model filter when suggested models are five or fewer", async () => {
+    mockRuntimeModels.mutateAsync.mockResolvedValue({
+      models: [
+        { id: "alpha-1", label: "Alpha 1" },
+        { id: "beta-1", label: "Beta 1" },
+        { id: "gamma-1", label: "Gamma 1" },
+        { id: "delta-1", label: "Delta 1" },
+        { id: "epsilon-1", label: "Epsilon 1" },
+      ],
+      profile: {},
+    });
+
+    render(
+      <RuntimeProfileForm
+        mode="create"
+        projectId="project-1"
+        runtimes={[
+          createRuntimeDescriptor({
+            id: "codex",
+            providerId: "openai",
+            displayName: "Codex",
+            defaultTransport: "cli",
+            defaultApiKeyEnvVar: "OPENAI_API_KEY",
+            defaultModelPlaceholder: "gpt-5.4",
+            supportedTransports: ["sdk", "cli", "api"],
+          }),
+        ]}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("alpha-1")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Alpha 1 \(alpha-1\)/i }));
+    expect(screen.queryByPlaceholderText("Filter suggested models")).toBeNull();
+  });
 });

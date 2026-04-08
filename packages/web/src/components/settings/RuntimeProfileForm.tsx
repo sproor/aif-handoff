@@ -166,6 +166,7 @@ export function RuntimeProfileForm({
   const selectedDiscoveredModel =
     discoveredModels.find((model) => model.id === defaultModel.trim()) ??
     (defaultModel.trim().length === 0 ? preferredDiscoveredModel : null);
+  const shouldShowModelFilter = discoveredModels.length > 5;
   const effortLevels = (() => {
     const byModel = getModelEffortLevels(selectedDiscoveredModel);
     return byModel.length > 0 ? byModel : getRuntimeEffortLevels(runtimeId);
@@ -368,10 +369,14 @@ export function RuntimeProfileForm({
               placeholder={
                 runtimeModels.isPending
                   ? "Loading models..."
-                  : discoveredModels.length > 0
-                    ? "Pick from runtime catalog"
-                    : "No models loaded"
+                  : discoveredModels.length === 0
+                    ? "No models loaded"
+                    : "Pick from runtime catalog"
               }
+              searchable={shouldShowModelFilter}
+              searchPlaceholder="Filter suggested models"
+              searchAutoFocus={shouldShowModelFilter}
+              searchEmptyMessage="No matching models"
               options={discoveredModels.map((model) => ({
                 value: model.id,
                 label: makeDiscoveryLabel(model),
