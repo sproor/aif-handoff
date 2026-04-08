@@ -267,7 +267,7 @@ describe("executeSubagentQuery query_start_timeout retry", () => {
       .mockImplementationOnce(makeDelayedSuccess(40, "late-1"))
       .mockImplementationOnce(makeDelayedSuccess(40, "late-2"));
 
-    await expect(executeSubagentQuery(baseOptions)).rejects.toThrow(/query_start_timeout/i);
+    await expect(executeSubagentQuery(baseOptions)).rejects.toThrow(/start timeout/i);
     expect(queryMock).toHaveBeenCalledTimes(2);
   });
 });
