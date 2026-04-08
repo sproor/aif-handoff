@@ -47,7 +47,6 @@ function createRunInput(overrides: Record<string, unknown> = {}) {
     model: "gpt-5.4",
     sessionId: "session-1",
     options: {},
-    metadata: {},
     ...overrides,
   };
 }
@@ -232,7 +231,7 @@ describe("codex cli transport", () => {
 
     const runPromise = runCodexCli(
       createRunInput({
-        metadata: { timeoutMs: 5 },
+        execution: { runTimeoutMs: 5 },
       }),
     );
 

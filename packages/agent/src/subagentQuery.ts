@@ -323,8 +323,9 @@ function buildExecutionIntent(
   return {
     maxBudgetUsd: options.maxBudgetUsd ?? null,
     maxTurns: options.maxTurns,
-    timeoutMs: options.queryStartTimeoutMs ?? env.AGENT_QUERY_START_TIMEOUT_MS,
-    retryDelayMs: options.queryStartRetryDelayMs ?? env.AGENT_QUERY_START_RETRY_DELAY_MS,
+    startTimeoutMs: options.queryStartTimeoutMs ?? env.AGENT_QUERY_START_TIMEOUT_MS,
+    startRetryDelayMs: options.queryStartRetryDelayMs ?? env.AGENT_QUERY_START_RETRY_DELAY_MS,
+    runTimeoutMs: env.AGENT_STAGE_RUN_TIMEOUT_MS,
     includePartialMessages: options.includePartialMessages ?? false,
     agentDefinitionName,
     systemPromptAppend,
@@ -424,9 +425,6 @@ export async function executeSubagentQuery(
       headers: context.headers,
       options: context.options,
       execution: executionIntent,
-      metadata: {
-        timeoutMs: getEnv().AGENT_STAGE_RUN_TIMEOUT_MS,
-      },
     } as const;
 
     const result =

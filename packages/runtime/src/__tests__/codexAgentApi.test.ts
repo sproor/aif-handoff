@@ -18,7 +18,6 @@ function createRunInput(overrides: Record<string, unknown> = {}) {
     sessionId: "session-1",
     resume: false,
     options: {},
-    metadata: {},
     ...overrides,
   };
 }

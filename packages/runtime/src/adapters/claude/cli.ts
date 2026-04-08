@@ -116,19 +116,11 @@ function spawnCliWindows(
 function resolveTimeoutMs(input: RuntimeRunInput): number {
   const exec = input.execution;
   if (
-    typeof exec?.timeoutMs === "number" &&
-    Number.isFinite(exec.timeoutMs) &&
-    exec.timeoutMs > 0
+    typeof exec?.runTimeoutMs === "number" &&
+    Number.isFinite(exec.runTimeoutMs) &&
+    exec.runTimeoutMs > 0
   ) {
-    return Math.floor(exec.timeoutMs);
-  }
-  const metadata = asRecord(input.metadata);
-  if (
-    typeof metadata.timeoutMs === "number" &&
-    Number.isFinite(metadata.timeoutMs) &&
-    (metadata.timeoutMs as number) > 0
-  ) {
-    return Math.floor(metadata.timeoutMs as number);
+    return Math.floor(exec.runTimeoutMs);
   }
   return 300_000;
 }

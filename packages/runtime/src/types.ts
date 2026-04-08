@@ -93,8 +93,10 @@ export type RuntimeSubagentStartCallback = (name: string, id: string) => void;
 export interface RuntimeExecutionIntent {
   maxBudgetUsd?: number | null;
   maxTurns?: number;
-  timeoutMs?: number;
-  retryDelayMs?: number;
+  /** Timeout waiting for the first output from the runtime stream (ms). */
+  startTimeoutMs?: number;
+  /** Delay before one automatic retry after a start timeout (ms). */
+  startRetryDelayMs?: number;
   includePartialMessages?: boolean;
   agentDefinitionName?: string;
   systemPromptAppend?: string;
@@ -108,6 +110,8 @@ export interface RuntimeExecutionIntent {
   onToolUse?: RuntimeToolUseCallback;
   /** Generic callback invoked when a subagent starts — adapter wires this into its native hook system. */
   onSubagentStart?: RuntimeSubagentStartCallback;
+  /** Hard timeout for the entire run/subprocess (ms). Distinct from `timeoutMs` which is the start-of-stream timeout. */
+  runTimeoutMs?: number;
   /** Whether to bypass runtime permission checks (requires trust token in hooks). */
   bypassPermissions?: boolean;
   /** JSON Schema for structured output — adapter passes it to the provider if supported. */
@@ -134,8 +138,6 @@ export interface RuntimeRunInput {
   headers?: Record<string, string>;
   options?: Record<string, unknown>;
   execution?: RuntimeExecutionIntent;
-  /** @deprecated Use `execution` instead. Kept for backwards compat during migration. */
-  metadata?: Record<string, unknown>;
 }
 
 export interface RuntimeEvent {

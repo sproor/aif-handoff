@@ -36,9 +36,9 @@ function createRunInput(overrides: Record<string, unknown> = {}) {
     options: {
       apiKeyEnvVar: "ANTHROPIC_API_KEY",
     },
-    metadata: {
-      queryStartTimeoutMs: 10,
-      queryStartRetryDelayMs: 0,
+    execution: {
+      startTimeoutMs: 10,
+      startRetryDelayMs: 0,
     },
     ...overrides,
   };
@@ -581,19 +581,21 @@ describe("Claude runtime adapter", () => {
       ...createRunInput({
         systemPrompt: "Project system prompt",
         model: "claude-sonnet-4-5",
-        metadata: {
-          queryStartTimeoutMs: 10,
-          queryStartRetryDelayMs: 0,
+        execution: {
+          timeoutMs: 10,
+          retryDelayMs: 0,
           systemPromptAppend: "Runtime append",
           includePartialMessages: true,
           maxTurns: 4,
           maxBudgetUsd: 2,
-          permissionMode: "bypassPermissions",
-          allowDangerouslySkipPermissions: true,
-          _trustToken: Symbol.for("aif.runtime.trust"),
+          bypassPermissions: true,
           agentDefinitionName: "implement-coordinator",
-          settingSources: ["project", "user"],
           environment: { CUSTOM_ENV: "1" },
+          hooks: {
+            allowDangerouslySkipPermissions: true,
+            _trustToken: Symbol.for("aif.runtime.trust"),
+            settingSources: ["project", "user"],
+          },
         },
         options: {
           apiKeyEnvVar: "ANTHROPIC_API_KEY",
@@ -691,9 +693,9 @@ describe("Claude runtime adapter", () => {
 
     const result = await adapter.resume!({
       ...createRunInput({
-        metadata: {
-          queryStartTimeoutMs: 100,
-          queryStartRetryDelayMs: 0,
+        execution: {
+          timeoutMs: 100,
+          retryDelayMs: 0,
         },
       }),
       sessionId: "session-resume-missing",
@@ -713,9 +715,9 @@ describe("Claude runtime adapter", () => {
 
     const result = await adapter.resume!({
       ...createRunInput({
-        metadata: {
-          queryStartTimeoutMs: 100,
-          queryStartRetryDelayMs: 0,
+        execution: {
+          timeoutMs: 100,
+          retryDelayMs: 0,
         },
       }),
       sessionId: "session-resume-missing-2",
@@ -735,9 +737,9 @@ describe("Claude runtime adapter", () => {
 
     const result = await adapter.resume!({
       ...createRunInput({
-        metadata: {
-          queryStartTimeoutMs: 100,
-          queryStartRetryDelayMs: 0,
+        execution: {
+          timeoutMs: 100,
+          retryDelayMs: 0,
         },
       }),
       sessionId: "session-resume-generic-failure",

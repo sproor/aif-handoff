@@ -87,7 +87,8 @@
  *   // Generic options (any adapter can use):
  *   exec?.maxBudgetUsd       // cost cap
  *   exec?.maxTurns           // iteration limit
- *   exec?.timeoutMs          // first-output timeout
+ *   exec?.startTimeoutMs     // first-output timeout
+ *   exec?.runTimeoutMs       // hard timeout for the entire run
  *   exec?.systemPromptAppend // appended to system prompt
  *   exec?.environment        // env vars for subprocess
  *   exec?.abortController    // cancellation signal

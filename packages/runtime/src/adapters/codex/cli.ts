@@ -151,10 +151,13 @@ export function probeCodexCli(cliPath: string): { ok: boolean; version?: string;
 }
 
 function resolveTimeoutMs(input: RuntimeRunInput): number {
-  const metadata = asRecord(input.metadata);
-  const value = metadata.timeoutMs;
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-    return Math.floor(value);
+  const exec = input.execution;
+  if (
+    typeof exec?.runTimeoutMs === "number" &&
+    Number.isFinite(exec.runTimeoutMs) &&
+    exec.runTimeoutMs > 0
+  ) {
+    return Math.floor(exec.runTimeoutMs);
   }
   return 120_000;
 }
