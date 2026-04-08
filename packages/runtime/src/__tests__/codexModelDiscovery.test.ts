@@ -58,7 +58,8 @@ describe("codex app-server model discovery env", () => {
 describe("codex app-server startup retry", () => {
   function getRetryWarnings(logger: { warn: ReturnType<typeof vi.fn> }) {
     return logger.warn.mock.calls.filter(
-      (call) => call[1] === "WARN [runtime:codex] Codex app-server port handoff failed, retrying startup",
+      (call) =>
+        call[1] === "WARN [runtime:codex] Codex app-server port handoff failed, retrying startup",
     );
   }
 
