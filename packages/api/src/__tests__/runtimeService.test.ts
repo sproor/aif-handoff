@@ -382,7 +382,9 @@ describe("runtime service", () => {
     expect(adapter.run).toHaveBeenCalledWith(
       expect.objectContaining({
         runtimeId: "claude",
+        transport: "sdk",
         workflowKind: "oneshot",
+        headers: {},
         options: expect.objectContaining({
           mode: "safe",
           baseUrl: "https://example.test",
@@ -403,6 +405,32 @@ describe("runtime service", () => {
             _trustToken: Symbol.for("aif.runtime.trust"),
           }),
         }),
+      }),
+    );
+  });
+
+  it("passes transport and headers from resolved profile to adapter.run()", async () => {
+    const runtimeService = await loadRuntimeService();
+    const adapter = createAdapter();
+    mockRegistryResolveRuntime.mockReturnValue(adapter);
+    mockResolveRuntimeProfile.mockReturnValue(
+      createResolvedProfile({
+        transport: "cli",
+        headers: { "X-Custom": "value" },
+      }),
+    );
+
+    await runtimeService.runApiRuntimeOneShot({
+      projectId: "proj-1",
+      projectRoot: "/tmp/project",
+      prompt: "generate roadmap",
+      workflowKind: "roadmap-generate",
+    });
+
+    expect(adapter.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport: "cli",
+        headers: { "X-Custom": "value" },
       }),
     );
   });

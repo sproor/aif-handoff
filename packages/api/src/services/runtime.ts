@@ -270,11 +270,13 @@ export async function runApiRuntimeOneShot(input: {
     runtimeId: context.resolvedProfile.runtimeId,
     providerId: context.resolvedProfile.providerId,
     profileId: context.resolvedProfile.profileId,
+    transport: context.resolvedProfile.transport,
     workflowKind: workflow.workflowKind,
     prompt: input.prompt,
     model: context.resolvedProfile.model ?? undefined,
     projectRoot: input.projectRoot,
     cwd: input.projectRoot,
+    headers: context.resolvedProfile.headers,
     options: {
       ...context.resolvedProfile.options,
       ...(context.resolvedProfile.baseUrl ? { baseUrl: context.resolvedProfile.baseUrl } : {}),
