@@ -265,7 +265,7 @@ export async function runApiRuntimeOneShot(input: {
     workflow,
   });
 
-  const bypassPermissions = getEnv().AGENT_BYPASS_PERMISSIONS;
+  const bypassPermissions = env.AGENT_BYPASS_PERMISSIONS;
   const result = await context.adapter.run({
     runtimeId: context.resolvedProfile.runtimeId,
     providerId: context.resolvedProfile.providerId,
