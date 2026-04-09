@@ -55,6 +55,21 @@ Node packages (`@aif/api`, `@aif/agent`, `@aif/data`, `@aif/shared`) auto-load e
 
 Environment validation is handled by Zod in `packages/shared/src/env.ts`. The application will fail to start with a descriptive error if required variables are invalid.
 
+## Frontend Request Timeouts
+
+The web UI (`@aif/web`) uses named timeout constants for HTTP requests to the API server. All constants are defined in `packages/web/src/lib/api.ts`:
+
+| Constant                    | Value | Used By                 | Description                                           |
+| --------------------------- | ----- | ----------------------- | ----------------------------------------------------- |
+| `REQUEST_TIMEOUT_MS`        | 15s   | All CRUD endpoints      | Short timeout for standard read/write API calls       |
+| `PLAN_FAST_FIX_TIMEOUT_MS`  | 200s  | `taskEvent("fast_fix")` | AI-driven plan fast fix (runtime resolves model/plan) |
+| `CHAT_TIMEOUT_MS`           | 300s  | `sendChatMessage()`     | Chat with AI (long-running, multi-turn)               |
+| `IMPORT_ROADMAP_TIMEOUT_MS` | 300s  | `importRoadmap()`       | Roadmap import (parses and creates tasks)             |
+
+`COMMENT_TIMEOUT_MS` (30s) is defined locally in `useTaskDetailActions.ts` for comment creation and non-AI task events.
+
+If a request exceeds its timeout, the browser aborts the fetch and the user sees a "Request timed out" error. The backend process may continue running independently.
+
 ## Authentication
 
 Runtime profiles support provider-specific auth setup. Each adapter resolves credentials from its corresponding env vars:
