@@ -847,7 +847,7 @@ chatRouter.post("/", jsonValidator(chatRequestSchema), async (c) => {
       },
       execution: {
         includePartialMessages: true,
-        maxTurns: 20,
+        maxTurns: getEnv().AGENT_CHAT_MAX_TURNS,
         onEvent: onRuntimeEvent,
         systemPromptAppend: systemAppend,
         environment: {
