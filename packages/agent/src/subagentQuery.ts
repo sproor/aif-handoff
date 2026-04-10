@@ -451,10 +451,25 @@ export async function executeSubagentQuery(
     const registry = await getRuntimeRegistry();
     adapter = registry.resolveRuntime(context.runtimeId);
 
-    // First-activity watchdog only works for SDK transport which streams tool events.
-    // CLI/API transports are opaque — no onToolUse callbacks until the run completes.
+    // First-activity watchdog requires a transport that surfaces tool_use
+    // events in real time. SDK (in-process query stream) and CLI (stream-json
+    // for Claude / JSONL for Codex) both fire execution.onToolUse during the
+    // run, so the watchdog can observe activity on both. API transport is
+    // pure HTTP — no intermediate events — and must stay disabled.
+    //
+    // CLI gets a 2x buffer over SDK because it carries extra cold-start cost
+    // the SDK path doesn't have: binary spawn (~1-3s), system/init message
+    // with the full tool/MCP catalogue, and — for Codex — model preambles
+    // that stream as agent_message text rather than tool_use events (so they
+    // don't reset the watchdog). Without the buffer, slow first-tool turns
+    // on CLI can false-positive the watchdog.
+    const baseFirstActivityTimeoutMs = getEnv().AGENT_FIRST_ACTIVITY_TIMEOUT_MS;
     const firstActivityTimeoutMs =
-      context.transport === "sdk" ? getEnv().AGENT_FIRST_ACTIVITY_TIMEOUT_MS : 0;
+      context.transport === "api"
+        ? 0
+        : context.transport === "cli"
+          ? baseFirstActivityTimeoutMs * 2
+          : baseFirstActivityTimeoutMs;
     let result: Awaited<ReturnType<RuntimeAdapter["run"]>> | undefined;
 
     // Retry loop: if agent stalls (no tool activity after start), kill and restart
@@ -482,8 +497,11 @@ export async function executeSubagentQuery(
       );
       // Override the abort controller with our per-attempt one
       executionIntent.abortController = attemptAbort;
-      // CLI/API transports produce output only after the full run — disable start timeout
-      if (context.transport !== "sdk") {
+      // API transport is pure HTTP — no incremental stream — so the
+      // start-timeout watchdog has nothing to observe and must stay off.
+      // SDK streams in-process and CLI now streams JSONL events (system/init
+      // arrives in the first few hundred ms), so both tolerate start timeout.
+      if (context.transport === "api") {
         executionIntent.startTimeoutMs = 0;
       }
 
