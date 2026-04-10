@@ -76,7 +76,7 @@ describe("runClaudeCli", () => {
     vi.restoreAllMocks();
   });
 
-  it("spawns claude CLI with correct default args", async () => {
+  it("spawns claude CLI with correct default args and streams the prompt via stdin", async () => {
     const input = createInput();
     const promise = runClaudeCli(input);
 
@@ -100,16 +100,30 @@ describe("runClaudeCli", () => {
     const { cliPath, cliArgs, spawnOptions } = getSpawnInvocation();
     expect(cliPath).toBe("claude");
     expect(cliArgs).toEqual(
-      expect.arrayContaining([
-        "--output-format",
-        "json",
-        "--permission-mode",
-        "acceptEdits",
-        "-p",
-        "Implement the feature",
-      ]),
+      expect.arrayContaining(["--output-format", "json", "--permission-mode", "acceptEdits", "-p"]),
     );
+    // Prompt is no longer on argv — it is streamed via stdin
+    expect(cliArgs).not.toContain("Implement the feature");
+    expect(mockStdin.write).toHaveBeenCalledWith("Implement the feature");
+    expect(mockStdin.end).toHaveBeenCalled();
     expect(spawnOptions).toEqual(expect.objectContaining({ cwd: "/tmp/project" }));
+  });
+
+  it("passes very large prompts via stdin without putting them on argv", async () => {
+    // 2 MB prompt — well beyond macOS ARG_MAX (1 MiB) and Windows cmd.exe (~8 KB).
+    const largePrompt = "x".repeat(2_000_000);
+    const input = createInput({ prompt: largePrompt });
+    const promise = runClaudeCli(input);
+
+    simulateClose(0, JSON.stringify({ result: "Done" }));
+    await promise;
+
+    const { cliArgs } = getSpawnInvocation();
+    expect(cliArgs).not.toContain(largePrompt);
+    // argv stays small — total size is a few hundred bytes of flags
+    const argvSize = cliArgs.reduce((sum, arg) => sum + arg.length, 0);
+    expect(argvSize).toBeLessThan(1_000);
+    expect(mockStdin.write).toHaveBeenCalledWith(largePrompt);
   });
 
   it("includes --agent flag when agentDefinitionName is set", async () => {

@@ -135,10 +135,13 @@ function resolveTimeoutMs(input: RuntimeRunInput): number {
 /**
  * Build CLI args for the `claude` binary.
  *
- * Agent mode:  `claude --agent <name> --output-format json -p "<prompt>"`
- * Direct mode: `claude --output-format json -p "<prompt>"`
+ * Agent mode:  `claude --agent <name> --output-format json -p` (prompt via stdin)
+ * Direct mode: `claude --output-format json -p`                 (prompt via stdin)
  *
- * With --yes to accept all permission prompts (non-interactive).
+ * The prompt itself is NOT passed on the command line — it is written to the
+ * child's stdin in `runCliAttempt`. This keeps the prompt off argv so we do
+ * not hit ARG_MAX / cmd.exe command-line limits on large prompts (rework
+ * headers, full plans, task attachments can easily reach 100+ KB).
  */
 function buildCliArgs(input: RuntimeRunInput): string[] {
   const execution = input.execution;
@@ -182,8 +185,8 @@ function buildCliArgs(input: RuntimeRunInput): string[] {
     args.push("--permission-mode", "acceptEdits");
   }
 
-  // Prompt
-  args.push("-p", input.prompt);
+  // Non-interactive print mode — prompt itself is piped through stdin below.
+  args.push("-p");
 
   return args;
 }
@@ -306,8 +309,13 @@ function runCliAttempt(
     execution?.onStderr?.(text);
   });
 
-  // Prompt is passed via -p flag, close stdin immediately to prevent
-  // "no stdin data received" warnings from the CLI.
+  // Prompt is streamed via stdin so it never lands on argv (ARG_MAX /
+  // cmd.exe command-line limits would clip large rework/plan prompts).
+  // Swallow EPIPE — the child may exit before the full prompt is flushed.
+  child.stdin!.on("error", () => {
+    /* ignore broken-pipe */
+  });
+  child.stdin!.write(input.prompt);
   child.stdin!.end();
 
   // If abort is requested, kill the child
